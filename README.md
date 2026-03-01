@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ph1p/ironmark/actions/workflows/ci.yml/badge.svg)](https://github.com/ph1p/ironmark/actions/workflows/ci.yml) [![npm](https://img.shields.io/npm/v/ironmark)](https://www.npmjs.com/package/ironmark) [![crates.io](https://img.shields.io/crates/v/ironmark)](https://crates.io/crates/ironmark)
 
-Fast Markdown-to-HTML parser written in Rust with **zero third-party** parsing dependencies. Fully compliant with [CommonMark 0.31.2](https://spec.commonmark.org/0.31.2/) (652/652 spec tests pass). Available as a Rust crate and as an npm package via WebAssembly, with both HTML and AST output APIs.
+Fast Markdown to HTML/AST parser written in Rust with **zero third-party** parsing dependencies. Fully compliant with [CommonMark 0.31.2](https://spec.commonmark.org/0.31.2/) (652/652 spec tests pass). Available as a Rust crate and as an npm package via WebAssembly, with both HTML and AST output APIs.
 
 ## Options
 
@@ -119,6 +119,10 @@ Exported AST types:
 - `ListKind`
 - `TableData`
 - `TableAlignment`
+
+## Benchmarks
+
+![Benchmark results](benchmark/results.svg)
 
 ## Development
 
