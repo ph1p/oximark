@@ -40,13 +40,15 @@ export function SplitPanels({
         <div className="hidden md:block px-4 pt-2.5 pb-2 text-xs font-medium text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
           Markdown
         </div>
-        <div className="flex-1 min-h-0">
-          <MarkdownEditor
-            value={markdown}
-            onValueChange={onMarkdownValueChange}
-            onDocChange={onMarkdownDocChange}
-            onEditorReady={onEditorReady}
-          />
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          <div className="absolute inset-0">
+            <MarkdownEditor
+              value={markdown}
+              onValueChange={onMarkdownValueChange}
+              onDocChange={onMarkdownDocChange}
+              onEditorReady={onEditorReady}
+            />
+          </div>
         </div>
       </div>
       <div
@@ -58,7 +60,7 @@ export function SplitPanels({
           id="panel-preview"
           role="tabpanel"
           aria-labelledby="tab-preview"
-          className={`${outputTab === "preview" ? "flex" : "hidden"} flex-1 overflow-auto p-3 md:p-5`}
+          className={`${outputTab === "preview" ? "flex" : "hidden"} flex-1 min-h-0 overflow-auto p-3 md:p-5`}
         >
           <div ref={previewRef} className="prose" />
         </div>
