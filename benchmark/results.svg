@@ -18,27 +18,27 @@
 <text x="48" y="152" fill="#aaa" font-size="12" font-weight="500">commonmark_spec (15.2 KB)</text>
 <rect x="675.5" y="140" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="151.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="151.5" fill="#8f8" font-size="9.5">1.1x faster</text>
+<text x="741.1" y="151.5" fill="#8f8" font-size="9.5">1.2x faster</text>
 <text x="154" y="182" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="170" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="170" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="182" text-anchor="end" fill="#e0e0e0" font-size="11">190.4 µs</text>
-<text x="828" y="182" text-anchor="end" fill="#666" font-size="10">78.0 MB/s</text>
+<text x="746" y="182" text-anchor="end" fill="#e0e0e0" font-size="11">189.0 µs</text>
+<text x="828" y="182" text-anchor="end" fill="#666" font-size="10">78.6 MB/s</text>
 <text x="154" y="210" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="198" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="198" width="441.0" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="210" text-anchor="end" fill="#e0e0e0" font-size="11">212.8 µs</text>
-<text x="828" y="210" text-anchor="end" fill="#666" font-size="10">69.8 MB/s</text>
+<rect x="170" y="198" width="427.2" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="210" text-anchor="end" fill="#e0e0e0" font-size="11">218.1 µs</text>
+<text x="828" y="210" text-anchor="end" fill="#666" font-size="10">68.1 MB/s</text>
 <text x="154" y="238" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="226" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="226" width="125.2" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="238" text-anchor="end" fill="#e0e0e0" font-size="11">749.3 µs</text>
-<text x="828" y="238" text-anchor="end" fill="#666" font-size="10">19.8 MB/s</text>
+<rect x="170" y="226" width="120.6" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="238" text-anchor="end" fill="#e0e0e0" font-size="11">772.4 µs</text>
+<text x="828" y="238" text-anchor="end" fill="#666" font-size="10">19.2 MB/s</text>
 <text x="154" y="266" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="254" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="254" width="18.3" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="266" text-anchor="end" fill="#e0e0e0" font-size="11">5.12 ms</text>
-<text x="828" y="266" text-anchor="end" fill="#666" font-size="10">2.9 MB/s</text>
+<rect x="170" y="254" width="16.4" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="266" text-anchor="end" fill="#e0e0e0" font-size="11">5.69 ms</text>
+<text x="828" y="266" text-anchor="end" fill="#666" font-size="10">2.6 MB/s</text>
 <text x="32" y="328" fill="#ccc" font-size="14" font-weight="600">Document Sizes</text>
 <rect x="32" y="338" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="366" fill="#aaa" font-size="12" font-weight="500">1000 bytes (1000 B)</text>
@@ -48,48 +48,48 @@
 <text x="154" y="396" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="384" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="384" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="396" text-anchor="end" fill="#e0e0e0" font-size="11">5.4 µs</text>
-<text x="828" y="396" text-anchor="end" fill="#666" font-size="10">177.3 MB/s</text>
+<text x="746" y="396" text-anchor="end" fill="#e0e0e0" font-size="11">5.6 µs</text>
+<text x="828" y="396" text-anchor="end" fill="#666" font-size="10">170.7 MB/s</text>
 <text x="154" y="424" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="412" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="412" width="299.1" height="20" rx="3" fill="#1971c2"/>
+<rect x="170" y="412" width="308.7" height="20" rx="3" fill="#1971c2"/>
 <text x="746" y="424" text-anchor="end" fill="#e0e0e0" font-size="11">8.9 µs</text>
-<text x="828" y="424" text-anchor="end" fill="#666" font-size="10">107.6 MB/s</text>
+<text x="828" y="424" text-anchor="end" fill="#666" font-size="10">106.9 MB/s</text>
 <text x="154" y="452" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="440" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="440" width="94.4" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="452" text-anchor="end" fill="#e0e0e0" font-size="11">28.1 µs</text>
-<text x="828" y="452" text-anchor="end" fill="#666" font-size="10">34.0 MB/s</text>
+<rect x="170" y="440" width="94.1" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="452" text-anchor="end" fill="#e0e0e0" font-size="11">29.3 µs</text>
+<text x="828" y="452" text-anchor="end" fill="#666" font-size="10">32.6 MB/s</text>
 <text x="154" y="480" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="468" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="468" width="18.1" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="480" text-anchor="end" fill="#e0e0e0" font-size="11">146.6 µs</text>
-<text x="828" y="480" text-anchor="end" fill="#666" font-size="10">6.5 MB/s</text>
+<rect x="170" y="468" width="18.2" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="480" text-anchor="end" fill="#e0e0e0" font-size="11">151.2 µs</text>
+<text x="828" y="480" text-anchor="end" fill="#666" font-size="10">6.3 MB/s</text>
 <rect x="32" y="512" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="540" fill="#aaa" font-size="12" font-weight="500">10000 bytes (9.8 KB)</text>
 <rect x="675.5" y="528" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="539.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="539.5" fill="#8f8" font-size="9.5">1.7x faster</text>
+<text x="741.1" y="539.5" fill="#8f8" font-size="9.5">1.8x faster</text>
 <text x="154" y="570" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="558" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="558" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="570" text-anchor="end" fill="#e0e0e0" font-size="11">49.1 µs</text>
-<text x="828" y="570" text-anchor="end" fill="#666" font-size="10">194.2 MB/s</text>
+<text x="746" y="570" text-anchor="end" fill="#e0e0e0" font-size="11">48.1 µs</text>
+<text x="828" y="570" text-anchor="end" fill="#666" font-size="10">198.3 MB/s</text>
 <text x="154" y="598" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="586" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="586" width="293.1" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="598" text-anchor="end" fill="#e0e0e0" font-size="11">82.6 µs</text>
-<text x="828" y="598" text-anchor="end" fill="#666" font-size="10">115.5 MB/s</text>
+<rect x="170" y="586" width="281.7" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="598" text-anchor="end" fill="#e0e0e0" font-size="11">84.2 µs</text>
+<text x="828" y="598" text-anchor="end" fill="#666" font-size="10">113.3 MB/s</text>
 <text x="154" y="626" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="614" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="614" width="88.5" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="626" text-anchor="end" fill="#e0e0e0" font-size="11">273.6 µs</text>
-<text x="828" y="626" text-anchor="end" fill="#666" font-size="10">34.9 MB/s</text>
+<rect x="170" y="614" width="87.5" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="626" text-anchor="end" fill="#e0e0e0" font-size="11">270.9 µs</text>
+<text x="828" y="626" text-anchor="end" fill="#666" font-size="10">35.2 MB/s</text>
 <text x="154" y="654" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="642" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="642" width="16.7" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="654" text-anchor="end" fill="#e0e0e0" font-size="11">1.45 ms</text>
-<text x="828" y="654" text-anchor="end" fill="#666" font-size="10">6.6 MB/s</text>
+<text x="746" y="654" text-anchor="end" fill="#e0e0e0" font-size="11">1.42 ms</text>
+<text x="828" y="654" text-anchor="end" fill="#666" font-size="10">6.7 MB/s</text>
 <rect x="32" y="686" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="714" fill="#aaa" font-size="12" font-weight="500">100000 bytes (97.7 KB)</text>
 <rect x="675.5" y="702" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
@@ -98,72 +98,72 @@
 <text x="154" y="744" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="732" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="732" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="744" text-anchor="end" fill="#e0e0e0" font-size="11">490.7 µs</text>
-<text x="828" y="744" text-anchor="end" fill="#666" font-size="10">194.3 MB/s</text>
+<text x="746" y="744" text-anchor="end" fill="#e0e0e0" font-size="11">481.7 µs</text>
+<text x="828" y="744" text-anchor="end" fill="#666" font-size="10">198.0 MB/s</text>
 <text x="154" y="772" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="760" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="760" width="297.9" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="772" text-anchor="end" fill="#e0e0e0" font-size="11">812.0 µs</text>
-<text x="828" y="772" text-anchor="end" fill="#666" font-size="10">117.4 MB/s</text>
+<rect x="170" y="760" width="293.8" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="772" text-anchor="end" fill="#e0e0e0" font-size="11">808.3 µs</text>
+<text x="828" y="772" text-anchor="end" fill="#666" font-size="10">118.0 MB/s</text>
 <text x="154" y="800" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="788" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="788" width="87.7" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="800" text-anchor="end" fill="#e0e0e0" font-size="11">2.76 ms</text>
-<text x="828" y="800" text-anchor="end" fill="#666" font-size="10">34.6 MB/s</text>
+<text x="746" y="800" text-anchor="end" fill="#e0e0e0" font-size="11">2.71 ms</text>
+<text x="828" y="800" text-anchor="end" fill="#666" font-size="10">35.2 MB/s</text>
 <text x="154" y="828" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="816" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="816" width="14.5" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="828" text-anchor="end" fill="#e0e0e0" font-size="11">16.69 ms</text>
+<rect x="170" y="816" width="14.2" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="828" text-anchor="end" fill="#e0e0e0" font-size="11">16.67 ms</text>
 <text x="828" y="828" text-anchor="end" fill="#666" font-size="10">5.7 MB/s</text>
 <rect x="32" y="860" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="888" fill="#aaa" font-size="12" font-weight="500">1000000 bytes (976.6 KB)</text>
 <rect x="675.5" y="876" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="887.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="887.5" fill="#8f8" font-size="9.5">1.9x faster</text>
+<text x="741.1" y="887.5" fill="#8f8" font-size="9.5">2.0x faster</text>
 <text x="154" y="918" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="906" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="906" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="918" text-anchor="end" fill="#e0e0e0" font-size="11">4.94 ms</text>
-<text x="828" y="918" text-anchor="end" fill="#666" font-size="10">193.1 MB/s</text>
+<text x="746" y="918" text-anchor="end" fill="#e0e0e0" font-size="11">4.84 ms</text>
+<text x="828" y="918" text-anchor="end" fill="#666" font-size="10">196.8 MB/s</text>
 <text x="154" y="946" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="934" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="934" width="263.6" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="946" text-anchor="end" fill="#e0e0e0" font-size="11">9.24 ms</text>
-<text x="828" y="946" text-anchor="end" fill="#666" font-size="10">103.3 MB/s</text>
+<rect x="170" y="934" width="250.1" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="946" text-anchor="end" fill="#e0e0e0" font-size="11">9.55 ms</text>
+<text x="828" y="946" text-anchor="end" fill="#666" font-size="10">99.9 MB/s</text>
 <text x="154" y="974" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="962" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="962" width="84.9" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="974" text-anchor="end" fill="#e0e0e0" font-size="11">28.67 ms</text>
-<text x="828" y="974" text-anchor="end" fill="#666" font-size="10">33.3 MB/s</text>
+<rect x="170" y="962" width="81.7" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="974" text-anchor="end" fill="#e0e0e0" font-size="11">29.22 ms</text>
+<text x="828" y="974" text-anchor="end" fill="#666" font-size="10">32.6 MB/s</text>
 <text x="154" y="1002" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="990" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="990" width="6.6" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="1002" text-anchor="end" fill="#e0e0e0" font-size="11">368.07 ms</text>
-<text x="828" y="1002" text-anchor="end" fill="#666" font-size="10">2.6 MB/s</text>
+<text x="746" y="1002" text-anchor="end" fill="#e0e0e0" font-size="11">359.85 ms</text>
+<text x="828" y="1002" text-anchor="end" fill="#666" font-size="10">2.7 MB/s</text>
 <rect x="32" y="1034" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1062" fill="#aaa" font-size="12" font-weight="500">5000000 bytes (4.8 MB)</text>
 <rect x="675.5" y="1050" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="1061.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="1061.5" fill="#8f8" font-size="9.5">2.3x faster</text>
+<text x="741.1" y="1061.5" fill="#8f8" font-size="9.5">2.0x faster</text>
 <text x="154" y="1092" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="1080" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1080" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="1092" text-anchor="end" fill="#e0e0e0" font-size="11">25.99 ms</text>
-<text x="828" y="1092" text-anchor="end" fill="#666" font-size="10">183.5 MB/s</text>
+<text x="746" y="1092" text-anchor="end" fill="#e0e0e0" font-size="11">25.88 ms</text>
+<text x="828" y="1092" text-anchor="end" fill="#666" font-size="10">184.3 MB/s</text>
 <text x="154" y="1120" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="1108" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1108" width="215.4" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="1120" text-anchor="end" fill="#e0e0e0" font-size="11">59.49 ms</text>
-<text x="828" y="1120" text-anchor="end" fill="#666" font-size="10">80.1 MB/s</text>
+<rect x="170" y="1108" width="252.6" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="1120" text-anchor="end" fill="#e0e0e0" font-size="11">50.51 ms</text>
+<text x="828" y="1120" text-anchor="end" fill="#666" font-size="10">94.4 MB/s</text>
 <text x="154" y="1148" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="1136" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1136" width="85.1" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="1148" text-anchor="end" fill="#e0e0e0" font-size="11">150.54 ms</text>
-<text x="828" y="1148" text-anchor="end" fill="#666" font-size="10">31.7 MB/s</text>
+<text x="746" y="1148" text-anchor="end" fill="#e0e0e0" font-size="11">149.91 ms</text>
+<text x="828" y="1148" text-anchor="end" fill="#666" font-size="10">31.8 MB/s</text>
 <text x="154" y="1176" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="1164" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1164" width="2.2" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="1176" text-anchor="end" fill="#e0e0e0" font-size="11">5752.41 ms</text>
+<text x="746" y="1176" text-anchor="end" fill="#e0e0e0" font-size="11">5781.90 ms</text>
 <text x="828" y="1176" text-anchor="end" fill="#666" font-size="10">0.8 MB/s</text>
 <text x="32" y="1238" fill="#ccc" font-size="14" font-weight="600">Block Types</text>
 <rect x="32" y="1248" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
@@ -175,22 +175,22 @@
 <rect x="170" y="1294" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1294" width="493.0" height="20" rx="3" fill="#1971c2"/>
 <text x="746" y="1306" text-anchor="end" fill="#e0e0e0" font-size="11">16.0 µs</text>
-<text x="828" y="1306" text-anchor="end" fill="#666" font-size="10">315.1 MB/s</text>
+<text x="828" y="1306" text-anchor="end" fill="#666" font-size="10">315.5 MB/s</text>
 <text x="154" y="1334" text-anchor="end" fill="#777" font-size="11" font-weight="400">ironmark</text>
 <rect x="170" y="1322" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1322" width="412.8" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="1334" text-anchor="end" fill="#e0e0e0" font-size="11">19.1 µs</text>
-<text x="828" y="1334" text-anchor="end" fill="#666" font-size="10">263.8 MB/s</text>
+<rect x="170" y="1322" width="414.1" height="20" rx="3" fill="#e8590c"/>
+<text x="746" y="1334" text-anchor="end" fill="#e0e0e0" font-size="11">19.0 µs</text>
+<text x="828" y="1334" text-anchor="end" fill="#666" font-size="10">265.0 MB/s</text>
 <text x="154" y="1362" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="1350" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1350" width="82.6" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="1362" text-anchor="end" fill="#e0e0e0" font-size="11">95.5 µs</text>
-<text x="828" y="1362" text-anchor="end" fill="#666" font-size="10">52.8 MB/s</text>
+<rect x="170" y="1350" width="83.0" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="1362" text-anchor="end" fill="#e0e0e0" font-size="11">95.0 µs</text>
+<text x="828" y="1362" text-anchor="end" fill="#666" font-size="10">53.1 MB/s</text>
 <text x="154" y="1390" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="1378" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1378" width="17.5" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="1390" text-anchor="end" fill="#e0e0e0" font-size="11">451.4 µs</text>
-<text x="828" y="1390" text-anchor="end" fill="#666" font-size="10">11.2 MB/s</text>
+<rect x="170" y="1378" width="17.8" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="1390" text-anchor="end" fill="#e0e0e0" font-size="11">443.3 µs</text>
+<text x="828" y="1390" text-anchor="end" fill="#666" font-size="10">11.4 MB/s</text>
 <rect x="32" y="1422" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1450" fill="#aaa" font-size="12" font-weight="500">headings (10.3 KB)</text>
 <rect x="675.5" y="1438" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
@@ -199,23 +199,23 @@
 <text x="154" y="1480" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="1468" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1468" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="1480" text-anchor="end" fill="#e0e0e0" font-size="11">33.0 µs</text>
-<text x="828" y="1480" text-anchor="end" fill="#666" font-size="10">305.4 MB/s</text>
+<text x="746" y="1480" text-anchor="end" fill="#e0e0e0" font-size="11">33.3 µs</text>
+<text x="828" y="1480" text-anchor="end" fill="#666" font-size="10">303.4 MB/s</text>
 <text x="154" y="1508" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="1496" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1496" width="418.1" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="1508" text-anchor="end" fill="#e0e0e0" font-size="11">39.0 µs</text>
-<text x="828" y="1508" text-anchor="end" fill="#666" font-size="10">259.0 MB/s</text>
+<rect x="170" y="1496" width="413.1" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="1508" text-anchor="end" fill="#e0e0e0" font-size="11">39.7 µs</text>
+<text x="828" y="1508" text-anchor="end" fill="#666" font-size="10">254.2 MB/s</text>
 <text x="154" y="1536" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="1524" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1524" width="92.8" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="1536" text-anchor="end" fill="#e0e0e0" font-size="11">175.6 µs</text>
-<text x="828" y="1536" text-anchor="end" fill="#666" font-size="10">57.5 MB/s</text>
+<rect x="170" y="1524" width="91.4" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="1536" text-anchor="end" fill="#e0e0e0" font-size="11">179.4 µs</text>
+<text x="828" y="1536" text-anchor="end" fill="#666" font-size="10">56.3 MB/s</text>
 <text x="154" y="1564" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="1552" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1552" width="15.1" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="1564" text-anchor="end" fill="#e0e0e0" font-size="11">1.08 ms</text>
-<text x="828" y="1564" text-anchor="end" fill="#666" font-size="10">9.3 MB/s</text>
+<rect x="170" y="1552" width="14.9" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="1564" text-anchor="end" fill="#e0e0e0" font-size="11">1.10 ms</text>
+<text x="828" y="1564" text-anchor="end" fill="#666" font-size="10">9.1 MB/s</text>
 <rect x="32" y="1596" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1624" fill="#aaa" font-size="12" font-weight="500">nested_lists (2.9 KB)</text>
 <rect x="675.5" y="1612" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
@@ -225,47 +225,47 @@
 <rect x="170" y="1642" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1642" width="493.0" height="20" rx="3" fill="#e8590c"/>
 <text x="746" y="1654" text-anchor="end" fill="#e0e0e0" font-size="11">11.5 µs</text>
-<text x="828" y="1654" text-anchor="end" fill="#666" font-size="10">244.1 MB/s</text>
+<text x="828" y="1654" text-anchor="end" fill="#666" font-size="10">244.0 MB/s</text>
 <text x="154" y="1682" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="1670" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1670" width="345.2" height="20" rx="3" fill="#1971c2"/>
+<rect x="170" y="1670" width="345.5" height="20" rx="3" fill="#1971c2"/>
 <text x="746" y="1682" text-anchor="end" fill="#e0e0e0" font-size="11">16.4 µs</text>
 <text x="828" y="1682" text-anchor="end" fill="#666" font-size="10">171.0 MB/s</text>
 <text x="154" y="1710" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="1698" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1698" width="139.8" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="1710" text-anchor="end" fill="#e0e0e0" font-size="11">40.5 µs</text>
-<text x="828" y="1710" text-anchor="end" fill="#666" font-size="10">69.2 MB/s</text>
+<rect x="170" y="1698" width="138.2" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="1710" text-anchor="end" fill="#e0e0e0" font-size="11">41.0 µs</text>
+<text x="828" y="1710" text-anchor="end" fill="#666" font-size="10">68.4 MB/s</text>
 <text x="154" y="1738" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="1726" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1726" width="7.0" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="1738" text-anchor="end" fill="#e0e0e0" font-size="11">810.0 µs</text>
+<rect x="170" y="1726" width="7.1" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="1738" text-anchor="end" fill="#e0e0e0" font-size="11">799.6 µs</text>
 <text x="828" y="1738" text-anchor="end" fill="#666" font-size="10">3.5 MB/s</text>
 <rect x="32" y="1770" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1798" fill="#aaa" font-size="12" font-weight="500">table (8.0 KB)</text>
 <rect x="675.5" y="1786" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="1797.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="1797.5" fill="#8f8" font-size="9.5">1.3x faster</text>
+<text x="741.1" y="1797.5" fill="#8f8" font-size="9.5">1.4x faster</text>
 <text x="154" y="1828" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="1816" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1816" width="493.0" height="20" rx="3" fill="#e8590c"/>
 <text x="746" y="1828" text-anchor="end" fill="#e0e0e0" font-size="11">38.3 µs</text>
-<text x="828" y="1828" text-anchor="end" fill="#666" font-size="10">204.8 MB/s</text>
+<text x="828" y="1828" text-anchor="end" fill="#666" font-size="10">204.9 MB/s</text>
 <text x="154" y="1856" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="1844" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1844" width="365.6" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="1856" text-anchor="end" fill="#e0e0e0" font-size="11">51.7 µs</text>
-<text x="828" y="1856" text-anchor="end" fill="#666" font-size="10">151.9 MB/s</text>
+<rect x="170" y="1844" width="364.6" height="20" rx="3" fill="#1971c2"/>
+<text x="746" y="1856" text-anchor="end" fill="#e0e0e0" font-size="11">51.8 µs</text>
+<text x="828" y="1856" text-anchor="end" fill="#666" font-size="10">151.5 MB/s</text>
 <text x="154" y="1884" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="1872" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1872" width="65.6" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="1884" text-anchor="end" fill="#e0e0e0" font-size="11">288.1 µs</text>
+<rect x="170" y="1872" width="65.7" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="1884" text-anchor="end" fill="#e0e0e0" font-size="11">287.6 µs</text>
 <text x="828" y="1884" text-anchor="end" fill="#666" font-size="10">27.3 MB/s</text>
 <text x="154" y="1912" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="1900" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1900" width="47.4" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="1912" text-anchor="end" fill="#e0e0e0" font-size="11">398.9 µs</text>
-<text x="828" y="1912" text-anchor="end" fill="#666" font-size="10">19.7 MB/s</text>
+<rect x="170" y="1900" width="46.9" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="1912" text-anchor="end" fill="#e0e0e0" font-size="11">403.0 µs</text>
+<text x="828" y="1912" text-anchor="end" fill="#666" font-size="10">19.5 MB/s</text>
 <text x="32" y="1974" fill="#ccc" font-size="14" font-weight="600">Inline-heavy</text>
 <rect x="32" y="1984" width="816" height="166" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="2012" fill="#aaa" font-size="12" font-weight="500">inline_heavy (16.7 KB)</text>
@@ -275,23 +275,23 @@
 <text x="154" y="2042" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="2030" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="2030" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="2042" text-anchor="end" fill="#e0e0e0" font-size="11">84.2 µs</text>
-<text x="828" y="2042" text-anchor="end" fill="#666" font-size="10">193.5 MB/s</text>
+<text x="746" y="2042" text-anchor="end" fill="#e0e0e0" font-size="11">83.8 µs</text>
+<text x="828" y="2042" text-anchor="end" fill="#666" font-size="10">194.5 MB/s</text>
 <text x="154" y="2070" text-anchor="end" fill="#777" font-size="11" font-weight="400">pulldown-cmark</text>
 <rect x="170" y="2058" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="2058" width="297.1" height="20" rx="3" fill="#1971c2"/>
-<text x="746" y="2070" text-anchor="end" fill="#e0e0e0" font-size="11">139.8 µs</text>
-<text x="828" y="2070" text-anchor="end" fill="#666" font-size="10">116.6 MB/s</text>
+<text x="746" y="2070" text-anchor="end" fill="#e0e0e0" font-size="11">139.1 µs</text>
+<text x="828" y="2070" text-anchor="end" fill="#666" font-size="10">117.2 MB/s</text>
 <text x="154" y="2098" text-anchor="end" fill="#777" font-size="11" font-weight="400">comrak</text>
 <rect x="170" y="2086" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="2086" width="88.8" height="20" rx="3" fill="#2f9e44"/>
-<text x="746" y="2098" text-anchor="end" fill="#e0e0e0" font-size="11">467.9 µs</text>
-<text x="828" y="2098" text-anchor="end" fill="#666" font-size="10">34.8 MB/s</text>
+<rect x="170" y="2086" width="87.4" height="20" rx="3" fill="#2f9e44"/>
+<text x="746" y="2098" text-anchor="end" fill="#e0e0e0" font-size="11">472.9 µs</text>
+<text x="828" y="2098" text-anchor="end" fill="#666" font-size="10">34.5 MB/s</text>
 <text x="154" y="2126" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-rs</text>
 <rect x="170" y="2114" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="2114" width="16.4" height="20" rx="3" fill="#c2185b"/>
-<text x="746" y="2126" text-anchor="end" fill="#e0e0e0" font-size="11">2.53 ms</text>
-<text x="828" y="2126" text-anchor="end" fill="#666" font-size="10">6.5 MB/s</text></g>
+<rect x="170" y="2114" width="16.7" height="20" rx="3" fill="#c2185b"/>
+<text x="746" y="2126" text-anchor="end" fill="#e0e0e0" font-size="11">2.48 ms</text>
+<text x="828" y="2126" text-anchor="end" fill="#666" font-size="10">6.6 MB/s</text></g>
 <g transform="translate(0,2254)"><text x="440" y="24" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">WASM (Node.js)</text>
 <text x="440" y="46" text-anchor="middle" fill="#888" font-size="12">ironmark vs markdown-wasm vs md4w — median of 500 iterations</text>
 <rect x="230" y="60" width="10" height="10" rx="2" fill="#e8590c"/>
@@ -305,22 +305,22 @@
 <text x="48" y="152" fill="#aaa" font-size="12" font-weight="500">spec (all examples) (15.1 KB)</text>
 <rect x="675.5" y="140" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="151.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="151.5" fill="#8f8" font-size="9.5">1.2x faster</text>
+<text x="741.1" y="151.5" fill="#8f8" font-size="9.5">1.3x faster</text>
 <text x="154" y="182" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="170" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="170" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="182" text-anchor="end" fill="#e0e0e0" font-size="11">302.9 µs</text>
-<text x="828" y="182" text-anchor="end" fill="#666" font-size="10">48.7 MB/s</text>
+<text x="746" y="182" text-anchor="end" fill="#e0e0e0" font-size="11">300.8 µs</text>
+<text x="828" y="182" text-anchor="end" fill="#666" font-size="10">49.0 MB/s</text>
 <text x="154" y="210" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="198" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="198" width="395.1" height="20" rx="3" fill="#0ea5e9"/>
+<rect x="170" y="198" width="392.3" height="20" rx="3" fill="#0ea5e9"/>
 <text x="746" y="210" text-anchor="end" fill="#e0e0e0" font-size="11">378.0 µs</text>
 <text x="828" y="210" text-anchor="end" fill="#666" font-size="10">39.0 MB/s</text>
 <text x="154" y="238" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="226" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="226" width="382.1" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="238" text-anchor="end" fill="#e0e0e0" font-size="11">390.8 µs</text>
-<text x="828" y="238" text-anchor="end" fill="#666" font-size="10">37.8 MB/s</text>
+<rect x="170" y="226" width="381.2" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="238" text-anchor="end" fill="#e0e0e0" font-size="11">389.0 µs</text>
+<text x="828" y="238" text-anchor="end" fill="#666" font-size="10">37.9 MB/s</text>
 <text x="32" y="300" fill="#ccc" font-size="14" font-weight="600">Document Sizes</text>
 <rect x="32" y="310" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="338" fill="#aaa" font-size="12" font-weight="500">mixed 1000 B (1000 B)</text>
@@ -330,16 +330,16 @@
 <text x="154" y="368" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="356" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="356" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="368" text-anchor="end" fill="#e0e0e0" font-size="11">10.8 µs</text>
-<text x="828" y="368" text-anchor="end" fill="#666" font-size="10">88.4 MB/s</text>
+<text x="746" y="368" text-anchor="end" fill="#e0e0e0" font-size="11">10.7 µs</text>
+<text x="828" y="368" text-anchor="end" fill="#666" font-size="10">89.4 MB/s</text>
 <text x="154" y="396" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="384" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="384" width="362.8" height="20" rx="3" fill="#7048e8"/>
+<rect x="170" y="384" width="358.5" height="20" rx="3" fill="#7048e8"/>
 <text x="746" y="396" text-anchor="end" fill="#e0e0e0" font-size="11">14.7 µs</text>
 <text x="828" y="396" text-anchor="end" fill="#666" font-size="10">65.0 MB/s</text>
 <text x="154" y="424" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="412" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="412" width="353.7" height="20" rx="3" fill="#0ea5e9"/>
+<rect x="170" y="412" width="349.6" height="20" rx="3" fill="#0ea5e9"/>
 <text x="746" y="424" text-anchor="end" fill="#e0e0e0" font-size="11">15.0 µs</text>
 <text x="828" y="424" text-anchor="end" fill="#666" font-size="10">63.4 MB/s</text>
 <rect x="32" y="456" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
@@ -350,38 +350,38 @@
 <text x="154" y="514" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="502" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="502" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="514" text-anchor="end" fill="#e0e0e0" font-size="11">98.0 µs</text>
-<text x="828" y="514" text-anchor="end" fill="#666" font-size="10">97.4 MB/s</text>
-<text x="154" y="542" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
+<text x="746" y="514" text-anchor="end" fill="#e0e0e0" font-size="11">97.0 µs</text>
+<text x="828" y="514" text-anchor="end" fill="#666" font-size="10">98.3 MB/s</text>
+<text x="154" y="542" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="530" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="530" width="361.2" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="542" text-anchor="end" fill="#e0e0e0" font-size="11">133.7 µs</text>
-<text x="828" y="542" text-anchor="end" fill="#666" font-size="10">71.3 MB/s</text>
-<text x="154" y="570" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
+<rect x="170" y="530" width="357.1" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="542" text-anchor="end" fill="#e0e0e0" font-size="11">134.0 µs</text>
+<text x="828" y="542" text-anchor="end" fill="#666" font-size="10">71.2 MB/s</text>
+<text x="154" y="570" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="558" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="558" width="360.7" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="570" text-anchor="end" fill="#e0e0e0" font-size="11">133.9 µs</text>
-<text x="828" y="570" text-anchor="end" fill="#666" font-size="10">71.2 MB/s</text>
+<rect x="170" y="558" width="354.9" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="570" text-anchor="end" fill="#e0e0e0" font-size="11">134.8 µs</text>
+<text x="828" y="570" text-anchor="end" fill="#666" font-size="10">70.8 MB/s</text>
 <rect x="32" y="602" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="630" fill="#aaa" font-size="12" font-weight="500">mixed 97.7 KB (97.7 KB)</text>
 <rect x="675.5" y="618" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="629.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="629.5" fill="#8f8" font-size="9.5">1.3x faster</text>
+<text x="741.1" y="629.5" fill="#8f8" font-size="9.5">1.4x faster</text>
 <text x="154" y="660" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="648" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="648" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="660" text-anchor="end" fill="#e0e0e0" font-size="11">992.1 µs</text>
-<text x="828" y="660" text-anchor="end" fill="#666" font-size="10">96.1 MB/s</text>
+<text x="746" y="660" text-anchor="end" fill="#e0e0e0" font-size="11">1.00 ms</text>
+<text x="828" y="660" text-anchor="end" fill="#666" font-size="10">95.3 MB/s</text>
 <text x="154" y="688" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="676" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="676" width="366.3" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="688" text-anchor="end" fill="#e0e0e0" font-size="11">1.34 ms</text>
-<text x="828" y="688" text-anchor="end" fill="#666" font-size="10">71.4 MB/s</text>
+<rect x="170" y="676" width="365.0" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="688" text-anchor="end" fill="#e0e0e0" font-size="11">1.35 ms</text>
+<text x="828" y="688" text-anchor="end" fill="#666" font-size="10">70.6 MB/s</text>
 <text x="154" y="716" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="704" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="704" width="360.2" height="20" rx="3" fill="#7048e8"/>
+<rect x="170" y="704" width="361.8" height="20" rx="3" fill="#7048e8"/>
 <text x="746" y="716" text-anchor="end" fill="#e0e0e0" font-size="11">1.36 ms</text>
-<text x="828" y="716" text-anchor="end" fill="#666" font-size="10">70.2 MB/s</text>
+<text x="828" y="716" text-anchor="end" fill="#666" font-size="10">70.0 MB/s</text>
 <text x="32" y="778" fill="#ccc" font-size="14" font-weight="600">Block Types</text>
 <rect x="32" y="788" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="816" fill="#aaa" font-size="12" font-weight="500">headings (10.3 KB)</text>
@@ -391,58 +391,58 @@
 <text x="154" y="846" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="834" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="834" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="846" text-anchor="end" fill="#e0e0e0" font-size="11">60.4 µs</text>
-<text x="828" y="846" text-anchor="end" fill="#666" font-size="10">167.0 MB/s</text>
+<text x="746" y="846" text-anchor="end" fill="#e0e0e0" font-size="11">59.9 µs</text>
+<text x="828" y="846" text-anchor="end" fill="#666" font-size="10">168.5 MB/s</text>
 <text x="154" y="874" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="862" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="862" width="324.6" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="874" text-anchor="end" fill="#e0e0e0" font-size="11">91.7 µs</text>
-<text x="828" y="874" text-anchor="end" fill="#666" font-size="10">110.0 MB/s</text>
+<rect x="170" y="862" width="322.2" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="874" text-anchor="end" fill="#e0e0e0" font-size="11">91.6 µs</text>
+<text x="828" y="874" text-anchor="end" fill="#666" font-size="10">110.1 MB/s</text>
 <text x="154" y="902" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="890" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="890" width="298.1" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="902" text-anchor="end" fill="#e0e0e0" font-size="11">99.9 µs</text>
-<text x="828" y="902" text-anchor="end" fill="#666" font-size="10">101.0 MB/s</text>
+<rect x="170" y="890" width="300.6" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="902" text-anchor="end" fill="#e0e0e0" font-size="11">98.2 µs</text>
+<text x="828" y="902" text-anchor="end" fill="#666" font-size="10">102.7 MB/s</text>
 <rect x="32" y="934" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="962" fill="#aaa" font-size="12" font-weight="500">nested lists (2.9 KB)</text>
-<rect x="675.5" y="950" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
-<text x="683.5" y="961.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="961.5" fill="#8f8" font-size="9.5">1.0x faster</text>
-<text x="154" y="992" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
+<rect x="740.5" y="950" width="91.5" height="18" rx="3" fill="none" stroke="#0ea5e9" stroke-opacity="0.6"/>
+<text x="748.5" y="961.5" fill="#fff" font-size="10" font-weight="600">md4w</text>
+<text x="781.3" y="961.5" fill="#888" font-size="9.5">~tied</text>
+<text x="154" y="992" text-anchor="end" fill="#fff" font-size="11" font-weight="600">md4w</text>
 <rect x="170" y="980" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="980" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="992" text-anchor="end" fill="#e0e0e0" font-size="11">17.6 µs</text>
-<text x="828" y="992" text-anchor="end" fill="#666" font-size="10">159.5 MB/s</text>
-<text x="154" y="1020" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
+<rect x="170" y="980" width="493.0" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="992" text-anchor="end" fill="#e0e0e0" font-size="11">17.9 µs</text>
+<text x="828" y="992" text-anchor="end" fill="#666" font-size="10">156.5 MB/s</text>
+<text x="154" y="1020" text-anchor="end" fill="#777" font-size="11" font-weight="400">ironmark</text>
 <rect x="170" y="1008" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1008" width="486.1" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="1020" text-anchor="end" fill="#e0e0e0" font-size="11">17.8 µs</text>
-<text x="828" y="1020" text-anchor="end" fill="#666" font-size="10">157.2 MB/s</text>
+<rect x="170" y="1008" width="489.6" height="20" rx="3" fill="#e8590c"/>
+<text x="746" y="1020" text-anchor="end" fill="#e0e0e0" font-size="11">18.0 µs</text>
+<text x="828" y="1020" text-anchor="end" fill="#666" font-size="10">155.4 MB/s</text>
 <text x="154" y="1048" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="1036" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1036" width="480.5" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="1048" text-anchor="end" fill="#e0e0e0" font-size="11">18.0 µs</text>
-<text x="828" y="1048" text-anchor="end" fill="#666" font-size="10">155.4 MB/s</text>
+<rect x="170" y="1036" width="488.4" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="1048" text-anchor="end" fill="#e0e0e0" font-size="11">18.1 µs</text>
+<text x="828" y="1048" text-anchor="end" fill="#666" font-size="10">155.1 MB/s</text>
 <rect x="32" y="1080" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1108" fill="#aaa" font-size="12" font-weight="500">table (100x10) (8.0 KB)</text>
 <rect x="675.5" y="1096" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
 <text x="683.5" y="1107.5" fill="#fff" font-size="10" font-weight="600">ironmark</text>
-<text x="741.1" y="1107.5" fill="#8f8" font-size="9.5">1.9x faster</text>
+<text x="741.1" y="1107.5" fill="#8f8" font-size="9.5">2.0x faster</text>
 <text x="154" y="1138" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="1126" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1126" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="1138" text-anchor="end" fill="#e0e0e0" font-size="11">59.9 µs</text>
-<text x="828" y="1138" text-anchor="end" fill="#666" font-size="10">131.1 MB/s</text>
+<text x="746" y="1138" text-anchor="end" fill="#e0e0e0" font-size="11">60.1 µs</text>
+<text x="828" y="1138" text-anchor="end" fill="#666" font-size="10">130.7 MB/s</text>
 <text x="154" y="1166" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="1154" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1154" width="253.5" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="1166" text-anchor="end" fill="#e0e0e0" font-size="11">116.5 µs</text>
-<text x="828" y="1166" text-anchor="end" fill="#666" font-size="10">67.4 MB/s</text>
+<rect x="170" y="1154" width="252.5" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="1166" text-anchor="end" fill="#e0e0e0" font-size="11">117.3 µs</text>
+<text x="828" y="1166" text-anchor="end" fill="#666" font-size="10">66.9 MB/s</text>
 <text x="154" y="1194" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="1182" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1182" width="196.7" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="1194" text-anchor="end" fill="#e0e0e0" font-size="11">150.1 µs</text>
-<text x="828" y="1194" text-anchor="end" fill="#666" font-size="10">52.3 MB/s</text>
+<rect x="170" y="1182" width="199.3" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="1194" text-anchor="end" fill="#e0e0e0" font-size="11">148.6 µs</text>
+<text x="828" y="1194" text-anchor="end" fill="#666" font-size="10">52.8 MB/s</text>
 <rect x="32" y="1226" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1254" fill="#aaa" font-size="12" font-weight="500">code blocks (5.2 KB)</text>
 <rect x="675.5" y="1242" width="156.5" height="18" rx="3" fill="none" stroke="#e8590c" stroke-opacity="0.6"/>
@@ -452,17 +452,17 @@
 <rect x="170" y="1272" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1272" width="493.0" height="20" rx="3" fill="#e8590c"/>
 <text x="746" y="1284" text-anchor="end" fill="#e0e0e0" font-size="11">37.0 µs</text>
-<text x="828" y="1284" text-anchor="end" fill="#666" font-size="10">136.2 MB/s</text>
-<text x="154" y="1312" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
+<text x="828" y="1284" text-anchor="end" fill="#666" font-size="10">136.3 MB/s</text>
+<text x="154" y="1312" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="1300" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1300" width="485.9" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="1312" text-anchor="end" fill="#e0e0e0" font-size="11">37.6 µs</text>
-<text x="828" y="1312" text-anchor="end" fill="#666" font-size="10">134.2 MB/s</text>
-<text x="154" y="1340" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
+<rect x="170" y="1300" width="476.9" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="1312" text-anchor="end" fill="#e0e0e0" font-size="11">38.2 µs</text>
+<text x="828" y="1312" text-anchor="end" fill="#666" font-size="10">131.9 MB/s</text>
+<text x="154" y="1340" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="1328" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1328" width="478.0" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="1340" text-anchor="end" fill="#e0e0e0" font-size="11">38.2 µs</text>
-<text x="828" y="1340" text-anchor="end" fill="#666" font-size="10">132.0 MB/s</text>
+<rect x="170" y="1328" width="471.2" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="1340" text-anchor="end" fill="#e0e0e0" font-size="11">38.7 µs</text>
+<text x="828" y="1340" text-anchor="end" fill="#666" font-size="10">130.3 MB/s</text>
 <text x="32" y="1402" fill="#ccc" font-size="14" font-weight="600">Inline-heavy</text>
 <rect x="32" y="1412" width="816" height="138" rx="6" fill="#1a1a1a" stroke="#2a2a2a"/>
 <text x="48" y="1440" fill="#aaa" font-size="12" font-weight="500">inline heavy (16.7 KB)</text>
@@ -472,17 +472,17 @@
 <text x="154" y="1470" text-anchor="end" fill="#fff" font-size="11" font-weight="600">ironmark</text>
 <rect x="170" y="1458" width="493" height="20" rx="3" fill="#252525"/>
 <rect x="170" y="1458" width="493.0" height="20" rx="3" fill="#e8590c"/>
-<text x="746" y="1470" text-anchor="end" fill="#e0e0e0" font-size="11">158.4 µs</text>
-<text x="828" y="1470" text-anchor="end" fill="#666" font-size="10">102.9 MB/s</text>
+<text x="746" y="1470" text-anchor="end" fill="#e0e0e0" font-size="11">156.5 µs</text>
+<text x="828" y="1470" text-anchor="end" fill="#666" font-size="10">104.2 MB/s</text>
 <text x="154" y="1498" text-anchor="end" fill="#777" font-size="11" font-weight="400">md4w</text>
 <rect x="170" y="1486" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1486" width="349.2" height="20" rx="3" fill="#0ea5e9"/>
-<text x="746" y="1498" text-anchor="end" fill="#e0e0e0" font-size="11">223.6 µs</text>
-<text x="828" y="1498" text-anchor="end" fill="#666" font-size="10">72.9 MB/s</text>
+<rect x="170" y="1486" width="349.3" height="20" rx="3" fill="#0ea5e9"/>
+<text x="746" y="1498" text-anchor="end" fill="#e0e0e0" font-size="11">220.8 µs</text>
+<text x="828" y="1498" text-anchor="end" fill="#666" font-size="10">73.8 MB/s</text>
 <text x="154" y="1526" text-anchor="end" fill="#777" font-size="11" font-weight="400">markdown-wasm</text>
 <rect x="170" y="1514" width="493" height="20" rx="3" fill="#252525"/>
-<rect x="170" y="1514" width="345.5" height="20" rx="3" fill="#7048e8"/>
-<text x="746" y="1526" text-anchor="end" fill="#e0e0e0" font-size="11">226.0 µs</text>
-<text x="828" y="1526" text-anchor="end" fill="#666" font-size="10">72.1 MB/s</text></g>
+<rect x="170" y="1514" width="341.7" height="20" rx="3" fill="#7048e8"/>
+<text x="746" y="1526" text-anchor="end" fill="#e0e0e0" font-size="11">225.7 µs</text>
+<text x="828" y="1526" text-anchor="end" fill="#666" font-size="10">72.2 MB/s</text></g>
 <text x="440" y="3848" text-anchor="middle" fill="#666" font-size="10">Bars show throughput (longer is faster). Generated on 2026-03-01.</text>
 </svg>

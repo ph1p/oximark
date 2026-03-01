@@ -51,6 +51,7 @@ export function MarkdownEditor({
     <CodeMirror
       value={value}
       height="100%"
+      style={{ height: "100%" }}
       theme={uiwTheme}
       extensions={extensions}
       onCreateEditor={(view) => {
