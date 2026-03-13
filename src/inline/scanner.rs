@@ -3,12 +3,14 @@ use super::*;
 impl<'a> InlineScanner<'a> {
     pub(super) fn scan_all(&mut self) {
         let mut text_start = self.pos;
+        let bytes = self.bytes;
+        let len = bytes.len();
 
-        while self.pos < self.bytes.len() {
-            let b = self.bytes[self.pos];
+        while self.pos < len {
+            let b = bytes[self.pos];
             if SPECIAL[b as usize] == 0 {
                 self.pos += 1;
-                while self.pos < self.bytes.len() && SPECIAL[self.bytes[self.pos] as usize] == 0 {
+                while self.pos < len && SPECIAL[bytes[self.pos] as usize] == 0 {
                     self.pos += 1;
                 }
                 continue;
@@ -16,8 +18,8 @@ impl<'a> InlineScanner<'a> {
 
             match b {
                 b'\\' => {
-                    if self.pos + 1 < self.bytes.len() {
-                        let next = self.bytes[self.pos + 1];
+                    if self.pos + 1 < len {
+                        let next = bytes[self.pos + 1];
                         if next == b'\n' {
                             self.flush_text_range(text_start, self.pos);
                             self.items.push(InlineItem::HardBreak);
@@ -65,7 +67,7 @@ impl<'a> InlineScanner<'a> {
                         b'+' => self.opts.enable_underline,
                         _ => false,
                     };
-                    if enabled && self.pos + 1 < self.bytes.len() && self.bytes[self.pos + 1] == b {
+                    if enabled && self.pos + 1 < len && bytes[self.pos + 1] == b {
                         self.flush_text_range(text_start, self.pos);
                         self.scan_delim_run(b);
                         text_start = self.pos;
@@ -74,7 +76,7 @@ impl<'a> InlineScanner<'a> {
                     }
                 }
                 b'!' => {
-                    if self.pos + 1 < self.bytes.len() && self.bytes[self.pos + 1] == b'[' {
+                    if self.pos + 1 < len && bytes[self.pos + 1] == b'[' {
                         self.flush_text_range(text_start, self.pos);
                         let idx = self.items.len();
                         self.items.push(InlineItem::BracketOpen { is_image: true });
@@ -133,10 +135,10 @@ impl<'a> InlineScanner<'a> {
                 }
                 b'\n' => {
                     let is_hard = self.pos >= text_start + 2
-                        && self.bytes[self.pos - 1] == b' '
-                        && self.bytes[self.pos - 2] == b' ';
+                        && bytes[self.pos - 1] == b' '
+                        && bytes[self.pos - 2] == b' ';
                     let mut text_end = self.pos;
-                    while text_end > text_start && self.bytes[text_end - 1] == b' ' {
+                    while text_end > text_start && bytes[text_end - 1] == b' ' {
                         text_end -= 1;
                     }
                     self.flush_text_range(text_start, text_end);
@@ -214,7 +216,7 @@ impl<'a> InlineScanner<'a> {
             }
             if close_count == open_count {
                 let raw = &self.input[after_open..close_start];
-                let has_newline = raw.as_bytes().contains(&b'\n');
+                let has_newline = memchr::memchr(b'\n', raw.as_bytes()).is_some();
                 if !has_newline {
                     // Fast path: no newline replacement needed. Check stripping.
                     let (s, e) = if raw.len() >= 2
@@ -228,18 +230,17 @@ impl<'a> InlineScanner<'a> {
                     };
                     self.items.push(InlineItem::CodeRange(s as u32, e as u32));
                 } else {
-                    // Slow path: replace newlines, then strip.
                     let content = raw.replace('\n', " ");
-                    let stripped = if content.len() >= 2
+                    if content.len() >= 2
                         && content.as_bytes()[0] == b' '
                         && content.as_bytes()[content.len() - 1] == b' '
                         && !content.bytes().all(|b| b == b' ')
                     {
-                        content[1..content.len() - 1].to_string()
+                        self.items
+                            .push(InlineItem::Code(content[1..content.len() - 1].into()));
                     } else {
-                        content
-                    };
-                    self.items.push(InlineItem::Code(stripped));
+                        self.items.push(InlineItem::Code(content));
+                    }
                 }
                 return;
             }
@@ -370,7 +371,7 @@ impl<'a> InlineScanner<'a> {
                 continue;
             }
 
-            let mut found = None;
+            let mut found: Option<(usize, u16)> = None;
             let mut odi = closer_di;
             while odi > stack_bottom {
                 odi -= 1;
@@ -401,26 +402,17 @@ impl<'a> InlineScanner<'a> {
                 if matches!(ckind, b'~' | b'=' | b'+') && (ocount < 2 || ccount < 2) {
                     continue;
                 }
-                found = Some(odi);
+                found = Some((odi, ocount));
                 break;
             }
 
-            let Some(opener_di) = found else {
+            let Some((opener_di, ocount)) = found else {
                 closer_di += 1;
                 continue;
             };
 
             let oi = self.delims[opener_di];
             let ci = self.delims[closer_di];
-
-            let ocount = match &self.items[oi] {
-                InlineItem::DelimRun { count, .. } => *count,
-                _ => 0,
-            };
-            let ccount = match &self.items[ci] {
-                InlineItem::DelimRun { count, .. } => *count,
-                _ => 0,
-            };
 
             let is_ext = matches!(ckind, b'~' | b'=' | b'+');
             let use_count: u16 = if ocount >= 2 && ccount >= 2 { 2 } else { 1 };
@@ -452,25 +444,17 @@ impl<'a> InlineScanner<'a> {
                 self.delims[di] = usize::MAX;
             }
 
-            let new_ocount = match &self.items[self.delims[opener_di]] {
-                InlineItem::DelimRun { count, .. } => *count,
-                _ => 0,
-            };
+            let new_ocount = ocount - use_count;
             if new_ocount == 0 {
                 self.delims[opener_di] = usize::MAX;
             }
 
-            let new_ccount = match &self.items[self.delims[closer_di]] {
-                InlineItem::DelimRun { count, .. } => *count,
-                _ => 0,
-            };
+            let new_ccount = ccount - use_count;
             if new_ccount == 0 {
                 self.delims[closer_di] = usize::MAX;
             }
             // Don't advance closer_di — the loop will re-check or skip as needed.
         }
-        // Compact: remove all marked entries in one pass, then truncate.
-        self.delims.retain(|&v| v != usize::MAX);
         self.delims.truncate(stack_bottom);
     }
 

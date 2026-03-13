@@ -336,7 +336,7 @@ impl<'a> BlockParser<'a> {
                                     fence_indent: indent,
                                     info: resolve_entities_and_escapes(info).into_owned(),
                                 })),
-                                256,
+                                128,
                             ));
                             return;
                         }
@@ -515,7 +515,7 @@ impl<'a> BlockParser<'a> {
                             fence_indent: indent,
                             info: resolve_entities_and_escapes(info).into_owned(),
                         })),
-                        256,
+                        128,
                     ));
                     return;
                 }
@@ -614,10 +614,7 @@ impl<'a> BlockParser<'a> {
 
         let list_kind = marker.kind;
 
-        let mut item = OpenBlock::new(OpenBlockType::ListItem {
-            content_col,
-            started_blank: rest_blank,
-        });
+        let mut item = OpenBlock::new_list_item(content_col, rest_blank);
         item.list_kind = Some(list_kind);
         item.list_start = marker.start_num;
         item.checked = checked;

@@ -4,12 +4,8 @@ import type { EditorView } from "@codemirror/view";
 import { cmThemeExtension, subscribeThemeChange } from "./editor/theme";
 import { highlightCodeBlocks } from "./editor/highlight";
 import { formatHtml } from "./util/format-html";
-import {
-  createHtmlView,
-  createAstView,
-  htmlThemeCompartment,
-  astThemeCompartment,
-} from "./editor/setup";
+import { createHtmlView, htmlThemeCompartment } from "./editor/setup";
+import { AstTreeView } from "./editor/ast-tree";
 import type { OutputTab } from "./components/types";
 
 export const DEFAULT_MARKDOWN = `# Markdown Playground
@@ -74,7 +70,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
   let currentMarkdown = DEFAULT_MARKDOWN;
   const htmlState = { dirty: false, lastHtml: "", astDirty: false, lastAst: "" };
   const htmlView = createHtmlView(args.htmlSourceContainer);
-  const astView = createAstView(args.astSourceContainer);
+  const astTree = new AstTreeView(args.astSourceContainer);
   let highlightRaf = 0;
   let htmlUpdateRaf = 0;
   let astUpdateRaf = 0;
@@ -89,9 +85,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
 
     if (tab === "ast" && htmlState.astDirty) {
       htmlState.astDirty = false;
-      astView.dispatch({
-        changes: { from: 0, to: astView.state.doc.length, insert: htmlState.lastAst },
-      });
+      astTree.update(htmlState.lastAst);
     }
   }
 
@@ -117,20 +111,12 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
     }
 
     const astJson = parseToAst(md);
-    let formatted: string;
-    try {
-      formatted = JSON.stringify(JSON.parse(astJson), null, 2);
-    } catch {
-      formatted = astJson;
-    }
-    htmlState.lastAst = formatted;
+    htmlState.lastAst = astJson;
 
     cancelAnimationFrame(astUpdateRaf);
     if (args.getOutputTab() === "ast") {
       astUpdateRaf = requestAnimationFrame(() => {
-        astView.dispatch({
-          changes: { from: 0, to: astView.state.doc.length, insert: formatted },
-        });
+        astTree.update(astJson);
       });
     } else {
       htmlState.astDirty = true;
@@ -140,7 +126,6 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
   const onThemeChange = () => {
     const ext = cmThemeExtension();
     htmlView.dispatch({ effects: htmlThemeCompartment.reconfigure(ext) });
-    astView.dispatch({ effects: astThemeCompartment.reconfigure(ext) });
     parseMarkdown(currentMarkdown);
   };
 
@@ -164,7 +149,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       cancelAnimationFrame(htmlUpdateRaf);
       cancelAnimationFrame(astUpdateRaf);
       htmlView.destroy();
-      astView.destroy();
+      astTree.destroy();
     },
   };
 }

@@ -172,9 +172,7 @@ pub(super) fn parse_table_separator(line: &str) -> Option<Vec<TableAlignment>> {
         return None;
     }
 
-    if !trimmed.contains('|') {
-        return None;
-    }
+    memchr::memchr(b'|', trimmed.as_bytes())?;
 
     let mut alignments = Vec::new();
     for cell in inner.split('|') {

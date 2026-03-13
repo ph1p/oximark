@@ -97,6 +97,65 @@
   @apply bg-zinc-50 dark:bg-zinc-800/25;
 }
 
+/* AST tree view */
+.ast-tree {
+  @apply h-full overflow-auto p-3 font-mono text-[0.8125rem] leading-relaxed;
+  background: #ffffff;
+  color: #18181b;
+}
+.ast-tree--dark {
+  background: #09090b;
+  color: #d4d4d8;
+}
+.ast-toggle {
+  @apply inline-block w-4 text-center cursor-pointer select-none text-zinc-400;
+}
+.ast-toggle:hover {
+  @apply text-zinc-600 dark:text-zinc-200;
+}
+.ast-children {
+  @apply pl-5;
+}
+.ast-row {
+  @apply whitespace-nowrap;
+}
+.ast-key {
+  color: #6d28d9;
+}
+.ast-tree--dark .ast-key {
+  color: #c4b5fd;
+}
+.ast-string {
+  color: #059669;
+}
+.ast-tree--dark .ast-string {
+  color: #6ee7b7;
+}
+.ast-number {
+  color: #0284c7;
+}
+.ast-tree--dark .ast-number {
+  color: #7dd3fc;
+}
+.ast-bool,
+.ast-null {
+  color: #d97706;
+}
+.ast-tree--dark .ast-bool,
+.ast-tree--dark .ast-null {
+  color: #fbbf24;
+}
+.ast-bracket {
+  color: #71717a;
+}
+.ast-colon,
+.ast-comma {
+  color: #a1a1aa;
+}
+.ast-preview {
+  @apply text-xs text-zinc-400 italic;
+}
+
 @media (min-width: 48rem) {
   #main-split > #panel-editor,
   #main-split > #panel-output {

@@ -22,28 +22,54 @@ pub(crate) fn escape_html_into(out: &mut String, input: &str) {
     let bytes = input.as_bytes();
     let len = bytes.len();
 
+    if len <= 64 {
+        escape_html_short(out, input, bytes, len);
+    } else {
+        escape_html_long(out, input, bytes, len);
+    }
+}
+
+#[inline(always)]
+fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
+    let mut last = 0;
+    let mut i = 0;
+    while i < len {
+        // SAFETY: i < len == bytes.len(), offsets are in-bounds.
+        let idx = unsafe { *HTML_ESCAPE.get_unchecked(*bytes.get_unchecked(i) as usize) };
+        if idx != 0 {
+            // SAFETY: last <= i <= len, all within input.
+            out.push_str(unsafe { input.get_unchecked(last..i) });
+            out.push_str(HTML_ESCAPE_STRS[idx as usize]);
+            last = i + 1;
+        }
+        i += 1;
+    }
+    // SAFETY: last <= len.
+    out.push_str(unsafe { input.get_unchecked(last..len) });
+}
+
+#[inline]
+fn escape_html_long(out: &mut String, input: &str, bytes: &[u8], len: usize) {
     if memchr::memchr3(b'&', b'<', b'>', bytes).is_none() && memchr::memchr(b'"', bytes).is_none() {
         out.push_str(input);
         return;
     }
 
     let mut last = 0;
-    for i in 0..len {
-        let idx = HTML_ESCAPE[bytes[i] as usize];
+    let mut i = 0;
+    while i < len {
+        // SAFETY: i < len == bytes.len(), offsets are in-bounds.
+        let idx = unsafe { *HTML_ESCAPE.get_unchecked(*bytes.get_unchecked(i) as usize) };
         if idx != 0 {
-            if last < i {
-                // SAFETY: `last` and `i` are loop-derived byte offsets within `input`
-                // and only advanced forward, so the subslice is in-bounds.
-                out.push_str(unsafe { input.get_unchecked(last..i) });
-            }
+            // SAFETY: last <= i <= len, all within input.
+            out.push_str(unsafe { input.get_unchecked(last..i) });
             out.push_str(HTML_ESCAPE_STRS[idx as usize]);
             last = i + 1;
         }
+        i += 1;
     }
-    if last < len {
-        // SAFETY: `last <= len` and both are computed from `input.len()`.
-        out.push_str(unsafe { input.get_unchecked(last..len) });
-    }
+    // SAFETY: last <= len.
+    out.push_str(unsafe { input.get_unchecked(last..len) });
 }
 
 static HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
@@ -72,6 +98,12 @@ static URL_HTML_SAFE: [bool; 256] = {
 pub(crate) fn encode_url_escaped_into(out: &mut String, url: &str) {
     let bytes = url.as_bytes();
     let len = bytes.len();
+
+    if bytes.iter().all(|&b| URL_HTML_SAFE[b as usize]) {
+        out.push_str(url);
+        return;
+    }
+
     let mut last = 0;
     let mut i = 0;
 
@@ -79,6 +111,9 @@ pub(crate) fn encode_url_escaped_into(out: &mut String, url: &str) {
         let b = bytes[i];
         if URL_HTML_SAFE[b as usize] {
             i += 1;
+            while i < len && URL_HTML_SAFE[bytes[i] as usize] {
+                i += 1;
+            }
             continue;
         }
         if b == b'%'

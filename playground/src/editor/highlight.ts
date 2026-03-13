@@ -3,26 +3,29 @@ import { defaultHighlightStyle } from "@codemirror/language";
 import { highlightCode } from "@lezer/highlight";
 import type { LanguageSupport, Language } from "@codemirror/language";
 import { isDark } from "./theme";
-
-const js = () => import("@codemirror/lang-javascript");
+import { javascript } from "@codemirror/lang-javascript";
+import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
+import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
 
 const langLoaders: Record<string, () => Promise<LanguageSupport>> = {
-  javascript: () => js().then((m) => m.javascript()),
-  js: () => js().then((m) => m.javascript()),
-  typescript: () => js().then((m) => m.javascript({ typescript: true })),
-  ts: () => js().then((m) => m.javascript({ typescript: true })),
-  jsx: () => js().then((m) => m.javascript({ jsx: true })),
-  tsx: () => js().then((m) => m.javascript({ jsx: true, typescript: true })),
+  javascript: () => Promise.resolve(javascript()),
+  js: () => Promise.resolve(javascript()),
+  typescript: () => Promise.resolve(javascript({ typescript: true })),
+  ts: () => Promise.resolve(javascript({ typescript: true })),
+  jsx: () => Promise.resolve(javascript({ jsx: true })),
+  tsx: () => Promise.resolve(javascript({ jsx: true, typescript: true })),
   rust: () => import("@codemirror/lang-rust").then((m) => m.rust()),
-  html: () => import("@codemirror/lang-html").then((m) => m.html()),
-  css: () => import("@codemirror/lang-css").then((m) => m.css()),
-  json: () => import("@codemirror/lang-json").then((m) => m.json()),
+  html: () => Promise.resolve(html()),
+  css: () => Promise.resolve(css()),
+  json: () => Promise.resolve(json()),
   python: () => import("@codemirror/lang-python").then((m) => m.python()),
   py: () => import("@codemirror/lang-python").then((m) => m.python()),
   yaml: () => import("@codemirror/lang-yaml").then((m) => m.yaml()),
   yml: () => import("@codemirror/lang-yaml").then((m) => m.yaml()),
-  markdown: () => import("@codemirror/lang-markdown").then((m) => m.markdown()),
-  md: () => import("@codemirror/lang-markdown").then((m) => m.markdown()),
+  markdown: () => Promise.resolve(markdown()),
+  md: () => Promise.resolve(markdown()),
 };
 
 const langCache = new Map<string, Language>();

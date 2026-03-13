@@ -90,13 +90,14 @@ fn render_one<'a>(
         }
         Block::ThematicBreak => out.push_str("<hr />\n"),
         Block::Heading { level, raw } => {
-            out.push_str("<h");
-            out.push((b'0' + level) as char);
-            out.push('>');
+            static OPEN: [&str; 7] = ["", "<h1>", "<h2>", "<h3>", "<h4>", "<h5>", "<h6>"];
+            static CLOSE: [&str; 7] = [
+                "", "</h1>\n", "</h2>\n", "</h3>\n", "</h4>\n", "</h5>\n", "</h6>\n",
+            ];
+            let l = *level as usize;
+            out.push_str(OPEN[l]);
             parse_inline_pass(out, raw, refs, opts, bufs);
-            out.push_str("</h");
-            out.push((b'0' + level) as char);
-            out.push_str(">\n");
+            out.push_str(CLOSE[l]);
         }
         Block::Paragraph { raw } => {
             out.push_str("<p>");
@@ -104,16 +105,23 @@ fn render_one<'a>(
             out.push_str("</p>\n");
         }
         Block::CodeBlock { info, literal } => {
-            out.push_str("<pre><code");
-            if !info.is_empty() {
-                let lang = info.split_whitespace().next().unwrap_or("");
-                if !lang.is_empty() {
-                    out.push_str(" class=\"language-");
+            if info.is_empty() {
+                out.push_str("<pre><code>");
+            } else {
+                let lang = match memchr::memchr3(b' ', b'\t', b'\n', info.as_bytes()) {
+                    Some(0) => "",
+                    // SAFETY: `pos` is returned by memchr and is within `info`.
+                    Some(pos) => unsafe { info.get_unchecked(..pos) },
+                    None => info,
+                };
+                if lang.is_empty() {
+                    out.push_str("<pre><code>");
+                } else {
+                    out.push_str("<pre><code class=\"language-");
                     escape_html_into(out, lang);
-                    out.push('"');
+                    out.push_str("\">");
                 }
             }
-            out.push('>');
             escape_html_into(out, literal);
             out.push_str("</code></pre>\n");
         }
@@ -274,19 +282,24 @@ fn render_nested_tight_list<'a>(
     let mut cur_children: &'a [Block] = children;
 
     loop {
-        emit_list_open(out, cur_kind, cur_start);
-
         let Block::ListItem {
             children: item_children,
             checked,
         } = &cur_children[0]
         else {
+            emit_list_open(out, cur_kind, cur_start);
             stack.push(Work::CloseTag(list_close_tag(cur_kind)));
             stack.push(Work::Block(&cur_children[0]));
             break;
         };
 
-        out.push_str("<li>");
+        match cur_kind {
+            ListKind::Bullet(_) => out.push_str("<ul>\n<li>"),
+            ListKind::Ordered(_) => {
+                emit_list_open(out, cur_kind, cur_start);
+                out.push_str("<li>");
+            }
+        }
         emit_checkbox(out, *checked);
 
         if item_children.len() == 2
@@ -317,14 +330,29 @@ fn render_nested_tight_list<'a>(
         {
             push_inline_or_plain(out, raw, inline.refs, inline.opts, bufs);
             // Reserve for unwind: "</li>\n" (6) + close tag (~6) per level
-            out.reserve((depth + 1) * 12);
-            out.push_str("</li>\n");
-            out.push_str(list_close_tag(cur_kind));
-            let mut i = depth;
-            while i > 0 {
-                i -= 1;
-                out.push_str("</li>\n");
-                out.push_str(close_tags[i]);
+            let total_close_bytes = (depth + 1) * 12;
+            out.reserve(total_close_bytes);
+            // SAFETY: reserved enough capacity, all bytes are ASCII.
+            unsafe {
+                let buf = out.as_mut_vec();
+                let mut ptr = buf.as_mut_ptr().add(buf.len());
+
+                macro_rules! write_bytes {
+                    ($s:expr) => {
+                        std::ptr::copy_nonoverlapping($s.as_ptr(), ptr, $s.len());
+                        ptr = ptr.add($s.len());
+                    };
+                }
+
+                write_bytes!(b"</li>\n");
+                write_bytes!(list_close_tag(cur_kind).as_bytes());
+                let mut i = depth;
+                while i > 0 {
+                    i -= 1;
+                    write_bytes!(b"</li>\n");
+                    write_bytes!(close_tags[i].as_bytes());
+                }
+                buf.set_len(ptr.offset_from(buf.as_ptr()) as usize);
             }
             return;
         }
@@ -426,17 +454,33 @@ fn render_table_cell(
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
 ) {
-    out.push('<');
-    out.push_str(tag);
-    match align {
-        TableAlignment::Left => out.push_str(" style=\"text-align: left\""),
-        TableAlignment::Right => out.push_str(" style=\"text-align: right\""),
-        TableAlignment::Center => out.push_str(" style=\"text-align: center\""),
-        TableAlignment::None => {}
-    }
-    out.push('>');
+    let (open, close) = match (tag, align) {
+        ("th", TableAlignment::None) => ("<th>", "</th>\n"),
+        ("td", TableAlignment::None) => ("<td>", "</td>\n"),
+        ("th", TableAlignment::Left) => ("<th style=\"text-align: left\">", "</th>\n"),
+        ("th", TableAlignment::Right) => ("<th style=\"text-align: right\">", "</th>\n"),
+        ("th", TableAlignment::Center) => ("<th style=\"text-align: center\">", "</th>\n"),
+        ("td", TableAlignment::Left) => ("<td style=\"text-align: left\">", "</td>\n"),
+        ("td", TableAlignment::Right) => ("<td style=\"text-align: right\">", "</td>\n"),
+        ("td", TableAlignment::Center) => ("<td style=\"text-align: center\">", "</td>\n"),
+        _ => {
+            out.push('<');
+            out.push_str(tag);
+            match align {
+                TableAlignment::Left => out.push_str(" style=\"text-align: left\""),
+                TableAlignment::Right => out.push_str(" style=\"text-align: right\""),
+                TableAlignment::Center => out.push_str(" style=\"text-align: center\""),
+                TableAlignment::None => {}
+            }
+            out.push('>');
+            parse_inline_pass(out, content, refs, opts, bufs);
+            out.push_str("</");
+            out.push_str(tag);
+            out.push_str(">\n");
+            return;
+        }
+    };
+    out.push_str(open);
     parse_inline_pass(out, content, refs, opts, bufs);
-    out.push_str("</");
-    out.push_str(tag);
-    out.push_str(">\n");
+    out.push_str(close);
 }

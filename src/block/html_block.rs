@@ -276,25 +276,71 @@ pub(super) fn contains_ci(haystack: &[u8], needle: &[u8]) -> bool {
     if needle.len() > haystack.len() {
         return false;
     }
+    let first_lower = needle[0];
+    let first_upper = first_lower.to_ascii_uppercase();
+    let mut pos = 0;
     let end = haystack.len() - needle.len() + 1;
-    'outer: for i in 0..end {
-        for j in 0..needle.len() {
+    while pos < end {
+        let next = if first_lower == first_upper {
+            memchr::memchr(first_lower, &haystack[pos..end])
+        } else {
+            memchr::memchr2(first_lower, first_upper, &haystack[pos..end])
+        };
+        let Some(off) = next else { return false };
+        let i = pos + off;
+        let mut matched = true;
+        for j in 1..needle.len() {
             if haystack[i + j].to_ascii_lowercase() != needle[j] {
-                continue 'outer;
+                matched = false;
+                break;
             }
         }
-        return true;
+        if matched {
+            return true;
+        }
+        pos = i + 1;
     }
     false
 }
 
 pub(super) fn html_block_ends(condition: &HtmlBlockEnd, line: &str) -> bool {
+    let bytes = line.as_bytes();
     match condition {
-        HtmlBlockEnd::EndTag(tag) => contains_ci(line.as_bytes(), tag.as_bytes()),
-        HtmlBlockEnd::Comment => line.contains("-->"),
-        HtmlBlockEnd::ProcessingInstruction => line.contains("?>"),
-        HtmlBlockEnd::Declaration => line.contains('>'),
-        HtmlBlockEnd::Cdata => line.contains("]]>"),
+        HtmlBlockEnd::EndTag(tag) => contains_ci(bytes, tag.as_bytes()),
+        HtmlBlockEnd::Comment => {
+            let mut pos = 0;
+            while let Some(off) = memchr::memchr(b'-', &bytes[pos..]) {
+                let i = pos + off;
+                if i + 2 < bytes.len() && bytes[i + 1] == b'-' && bytes[i + 2] == b'>' {
+                    return true;
+                }
+                pos = i + 1;
+            }
+            false
+        }
+        HtmlBlockEnd::ProcessingInstruction => {
+            let mut pos = 0;
+            while let Some(off) = memchr::memchr(b'?', &bytes[pos..]) {
+                let i = pos + off;
+                if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
+                    return true;
+                }
+                pos = i + 1;
+            }
+            false
+        }
+        HtmlBlockEnd::Declaration => memchr::memchr(b'>', bytes).is_some(),
+        HtmlBlockEnd::Cdata => {
+            let mut pos = 0;
+            while let Some(off) = memchr::memchr(b']', &bytes[pos..]) {
+                let i = pos + off;
+                if i + 2 < bytes.len() && bytes[i + 1] == b']' && bytes[i + 2] == b'>' {
+                    return true;
+                }
+                pos = i + 1;
+            }
+            false
+        }
         HtmlBlockEnd::BlankLine => false,
     }
 }

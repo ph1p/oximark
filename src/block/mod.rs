@@ -319,6 +319,24 @@ impl OpenBlock {
             ..Self::new(block_type)
         }
     }
+
+    #[inline]
+    fn new_list_item(content_col: usize, started_blank: bool) -> Self {
+        Self {
+            block_type: OpenBlockType::ListItem {
+                content_col,
+                started_blank,
+            },
+            content: String::new(),
+            children: Vec::with_capacity(2),
+            had_blank_in_item: false,
+            list_has_blank_between: false,
+            content_has_newline: false,
+            checked: None,
+            list_start: 0,
+            list_kind: None,
+        }
+    }
 }
 
 pub(crate) struct BlockParser<'a> {
@@ -333,7 +351,9 @@ pub(crate) struct BlockParser<'a> {
 
 impl<'a> BlockParser<'a> {
     pub fn new(input: &'a str, enable_tables: bool, enable_task_lists: bool) -> Self {
-        let doc = OpenBlock::new(OpenBlockType::Document);
+        let mut doc = OpenBlock::new(OpenBlockType::Document);
+        let estimated_blocks = (input.len() / 50).clamp(8, 256);
+        doc.children = Vec::with_capacity(estimated_blocks);
         let mut open = Vec::with_capacity(16);
         open.push(doc);
         Self {
