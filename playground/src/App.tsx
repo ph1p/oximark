@@ -4,11 +4,13 @@ import { Header } from "./components/Header";
 import { MobileTabs } from "./components/MobileTabs";
 import { SplitPanels } from "./components/SplitPanels";
 import { DEFAULT_MARKDOWN, initPlayground, type PlaygroundController } from "./playground";
-import type { MobilePanel, OutputTab } from "./components/types";
+import type { MobilePanel, OutputTab, ParseOptions } from "./components/types";
+import { DEFAULT_PARSE_OPTIONS } from "./components/types";
 
 const MARKDOWN_STORAGE_KEY = "playground:markdown";
 const OUTPUT_TAB_STORAGE_KEY = "playground:output-tab";
 const MOBILE_PANEL_STORAGE_KEY = "playground:mobile-panel";
+const OPTIONS_STORAGE_KEY = "playground:options";
 
 function readOutputTab(): OutputTab {
   const value = localStorage.getItem(OUTPUT_TAB_STORAGE_KEY);
@@ -20,6 +22,19 @@ function readMobilePanel(): MobilePanel {
   return value === "preview" || value === "html" || value === "ast" ? value : "editor";
 }
 
+function readOptions(): ParseOptions {
+  try {
+    const raw = localStorage.getItem(OPTIONS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_PARSE_OPTIONS, ...parsed };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_PARSE_OPTIONS };
+}
+
 export function App() {
   const [statusText, setStatusText] = useState("loading wasm...");
   const [outputTab, setOutputTab] = useState<OutputTab>(() => readOutputTab());
@@ -27,6 +42,7 @@ export function App() {
   const [markdown, setMarkdown] = useState(
     () => localStorage.getItem(MARKDOWN_STORAGE_KEY) ?? DEFAULT_MARKDOWN,
   );
+  const [options, setOptions] = useState<ParseOptions>(readOptions);
   const outputTabRef = useRef(outputTab);
   const controllerRef = useRef<PlaygroundController | null>(null);
   const pendingEditorRef = useRef<EditorView | null>(null);
@@ -60,6 +76,7 @@ export function App() {
         }
         controllerRef.current = controller;
         controller.setOutputTab(outputTabRef.current);
+        controller.updateOptions(options);
         controller.updateMarkdown(markdown);
         if (pendingEditorRef.current) {
           controller.attachEditorView(pendingEditorRef.current);
@@ -94,6 +111,11 @@ export function App() {
     localStorage.setItem(MOBILE_PANEL_STORAGE_KEY, mobilePanel);
   }, [mobilePanel]);
 
+  useEffect(() => {
+    localStorage.setItem(OPTIONS_STORAGE_KEY, JSON.stringify(options));
+    controllerRef.current?.updateOptions(options);
+  }, [options]);
+
   const onMobilePanelChange = (panel: MobilePanel) => {
     setMobilePanel(panel);
     if (panel !== "editor") {
@@ -122,6 +144,8 @@ export function App() {
         onMarkdownValueChange={setMarkdown}
         onMarkdownDocChange={onMarkdownDocChange}
         onEditorReady={onEditorReady}
+        options={options}
+        onOptionsChange={setOptions}
         previewRef={previewRef}
         htmlSourceContainerRef={htmlSourceContainerRef}
         astSourceContainerRef={astSourceContainerRef}

@@ -6,7 +6,8 @@ import { highlightCodeBlocks } from "./editor/highlight";
 import { formatHtml } from "./util/format-html";
 import { createHtmlView, htmlThemeCompartment } from "./editor/setup";
 import { AstTreeView } from "./editor/ast-tree";
-import type { OutputTab } from "./components/types";
+import type { OutputTab, ParseOptions } from "./components/types";
+import { DEFAULT_PARSE_OPTIONS } from "./components/types";
 
 export const DEFAULT_MARKDOWN = `# Markdown Playground
 
@@ -59,6 +60,7 @@ type InitPlaygroundArgs = {
 export type PlaygroundController = {
   setOutputTab: (tab: OutputTab) => void;
   updateMarkdown: (markdown: string) => void;
+  updateOptions: (options: ParseOptions) => void;
   attachEditorView: (editorView: EditorView) => void;
   dispose: () => void;
 };
@@ -68,6 +70,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
 
   let editorView: EditorView | null = null;
   let currentMarkdown = DEFAULT_MARKDOWN;
+  let currentOptions: ParseOptions = { ...DEFAULT_PARSE_OPTIONS };
   const htmlState = { dirty: false, lastHtml: "", astDirty: false, lastAst: "" };
   const htmlView = createHtmlView(args.htmlSourceContainer);
   const astTree = new AstTreeView(args.astSourceContainer);
@@ -90,9 +93,20 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
   }
 
   function parseMarkdown(md: string) {
+    const o = currentOptions;
     const t0 = performance.now();
-    const html = parse(md);
+    const opts = {
+      hardBreaks: o.hard_breaks,
+      enableHighlight: o.enable_highlight,
+      enableStrikethrough: o.enable_strikethrough,
+      enableUnderline: o.enable_underline,
+      enableTables: o.enable_tables,
+      enableAutolink: o.enable_autolink,
+      enableTaskLists: o.enable_task_lists,
+    };
+    const html = parse(md, opts);
     args.onStatusChange(`${(performance.now() - t0).toFixed(2)}ms`);
+
     args.preview.innerHTML = html;
     htmlState.lastHtml = html;
 
@@ -110,7 +124,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       htmlState.dirty = true;
     }
 
-    const astJson = parseToAst(md);
+    const astJson = parseToAst(md, opts);
     htmlState.lastAst = astJson;
 
     cancelAnimationFrame(astUpdateRaf);
@@ -138,6 +152,10 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
     updateMarkdown: (markdown) => {
       currentMarkdown = markdown;
       parseMarkdown(markdown);
+    },
+    updateOptions: (options) => {
+      currentOptions = options;
+      parseMarkdown(currentMarkdown);
     },
     attachEditorView: (view) => {
       editorView = view;

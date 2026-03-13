@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { OutputTabs } from "./OutputTabs";
-import type { MobilePanel, OutputTab } from "./types";
+import { OptionsPanel } from "./OptionsPanel";
+import type { MobilePanel, OutputTab, ParseOptions } from "./types";
 import { MarkdownEditor } from "./MarkdownEditor";
 import type { EditorView } from "@codemirror/view";
 
@@ -12,6 +13,8 @@ type SplitPanelsProps = {
   onMarkdownValueChange: (value: string) => void;
   onMarkdownDocChange: (value: string) => void;
   onEditorReady: (view: EditorView) => void;
+  options: ParseOptions;
+  onOptionsChange: (options: ParseOptions) => void;
   previewRef: RefObject<HTMLDivElement | null>;
   htmlSourceContainerRef: RefObject<HTMLDivElement | null>;
   astSourceContainerRef: RefObject<HTMLDivElement | null>;
@@ -25,6 +28,8 @@ export function SplitPanels({
   onMarkdownValueChange,
   onMarkdownDocChange,
   onEditorReady,
+  options,
+  onOptionsChange,
   previewRef,
   htmlSourceContainerRef,
   astSourceContainerRef,
@@ -40,6 +45,7 @@ export function SplitPanels({
         <div className="hidden md:block px-4 pt-2.5 pb-2 text-xs font-medium text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
           Markdown
         </div>
+        <OptionsPanel options={options} onChange={onOptionsChange} />
         <div className="flex-1 min-h-0 overflow-hidden">
           <MarkdownEditor
             value={markdown}

@@ -118,6 +118,8 @@ fn parse_markdown_it(input: &str) -> String {
 fn bench_group(c: &mut Criterion, group_name: &str, input: &str) {
     let label = format!("{} bytes", input.len());
     let mut group = c.benchmark_group(group_name);
+    group.warm_up_time(std::time::Duration::from_millis(500));
+    group.measurement_time(std::time::Duration::from_secs(2));
     for &(name, func) in PARSERS {
         group.bench_with_input(BenchmarkId::new(name, &label), input, |b, input| {
             b.iter(|| func(black_box(input)))
@@ -137,14 +139,17 @@ fn bench_sizes(c: &mut Criterion) {
     let base = gen_inline_heavy();
     for &size in &[1_000, 10_000, 100_000] {
         let input: String = base.chars().cycle().take(size).collect();
-        bench_group(c, &format!("document_size/{size} bytes"), &input);
+        bench_group(c, &format!("document_size_{size} bytes"), &input);
     }
-    // Large file benchmarks need fewer samples
-    for &size in &[1_000_000, 5_000_000] {
+    // Large file benchmark — single size, fewer samples
+    {
+        let size = 1_000_000;
         let input: String = base.chars().cycle().take(size).collect();
         let label = format!("{} bytes", input.len());
-        let mut group = c.benchmark_group(format!("document_size/{size} bytes"));
+        let mut group = c.benchmark_group(format!("document_size_{size} bytes"));
         group.sample_size(10);
+        group.warm_up_time(std::time::Duration::from_millis(300));
+        group.measurement_time(std::time::Duration::from_secs(2));
         for &(name, func) in PARSERS {
             group.bench_with_input(BenchmarkId::new(name, &label), &*input, |b, input| {
                 b.iter(|| func(black_box(input)))
@@ -191,13 +196,15 @@ fn bench_pathological(c: &mut Criterion) {
     let cases: Vec<(&str, String)> = vec![
         ("backticks_500", gen_pathological_backticks(500)),
         ("emphasis_10k", gen_pathological_emphasis(10_000)),
-        ("table_5k_rows", gen_table(5_000, 20)),
-        ("ref_links_5k", gen_many_ref_links(5_000)),
+        ("table_1k_rows", gen_table(1_000, 10)),
+        ("ref_links_1k", gen_many_ref_links(1_000)),
     ];
     for (name, input) in &cases {
         let label = format!("{} bytes", input.len());
         let mut group = c.benchmark_group(format!("pathological/{name}"));
         group.sample_size(10);
+        group.warm_up_time(std::time::Duration::from_millis(300));
+        group.measurement_time(std::time::Duration::from_secs(2));
         for &(pname, func) in PARSERS {
             group.bench_with_input(BenchmarkId::new(pname, &label), &**input, |b, input| {
                 b.iter(|| func(black_box(input)))
@@ -282,18 +289,19 @@ fn gen_mixed_doc(lines: usize) -> String {
 }
 
 fn bench_large_lines(c: &mut Criterion) {
-    for &num_lines in &[10_000, 20_000] {
-        let input = gen_mixed_doc(num_lines);
-        let label = format!("{} lines / {} bytes", num_lines, input.len());
-        let mut group = c.benchmark_group(format!("large_lines/{num_lines}"));
-        group.sample_size(10);
-        for &(name, func) in PARSERS {
-            group.bench_with_input(BenchmarkId::new(name, &label), &*input, |b, input| {
-                b.iter(|| func(black_box(input)))
-            });
-        }
-        group.finish();
+    let num_lines = 10_000;
+    let input = gen_mixed_doc(num_lines);
+    let label = format!("{} lines / {} bytes", num_lines, input.len());
+    let mut group = c.benchmark_group(format!("large_lines/{num_lines}"));
+    group.sample_size(10);
+    group.warm_up_time(std::time::Duration::from_millis(300));
+    group.measurement_time(std::time::Duration::from_secs(2));
+    for &(name, func) in PARSERS {
+        group.bench_with_input(BenchmarkId::new(name, &label), &*input, |b, input| {
+            b.iter(|| func(black_box(input)))
+        });
     }
+    group.finish();
 }
 
 criterion_group!(
