@@ -126,9 +126,16 @@ fn render_one<'a>(
             out.push_str("</code></pre>\n");
         }
         Block::HtmlBlock { literal } => {
-            out.push_str(literal);
-            if !literal.ends_with('\n') {
-                out.push('\n');
+            if opts.disable_raw_html {
+                escape_html_into(out, literal);
+                if !literal.ends_with('\n') {
+                    out.push('\n');
+                }
+            } else {
+                out.push_str(literal);
+                if !literal.ends_with('\n') {
+                    out.push('\n');
+                }
             }
         }
         Block::BlockQuote { children } => {
@@ -333,8 +340,11 @@ fn render_nested_tight_list<'a>(
             let total_close_bytes = (depth + 1) * 12;
             out.reserve(total_close_bytes);
             // SAFETY: reserved enough capacity, all bytes are ASCII.
+            // Each nesting level writes at most "</li>\n" (6) + "</ul>\n"/"</ol>\n" (6) = 12 bytes.
+            debug_assert!(total_close_bytes >= 12, "close bytes must cover at least one level");
             unsafe {
                 let buf = out.as_mut_vec();
+                debug_assert!(buf.capacity() - buf.len() >= total_close_bytes);
                 let mut ptr = buf.as_mut_ptr().add(buf.len());
 
                 macro_rules! write_bytes {

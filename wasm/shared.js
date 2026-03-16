@@ -21,6 +21,7 @@ function optionArgs(markdown, options) {
     options?.enableTables ?? undefined,
     options?.enableAutolink ?? undefined,
     options?.enableTaskLists ?? undefined,
+    options?.disableRawHtml ?? undefined,
   ];
 }
 

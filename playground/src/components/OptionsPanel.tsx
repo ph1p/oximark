@@ -14,6 +14,7 @@ const OPTION_LABELS: { key: keyof ParseOptions; label: string; description: stri
   { key: "enable_tables", label: "Tables", description: "Pipe table syntax" },
   { key: "enable_autolink", label: "Autolink", description: "Bare URLs and emails" },
   { key: "enable_task_lists", label: "Task lists", description: "- [x] checkbox items" },
+  { key: "disable_raw_html", label: "Disable raw HTML", description: "Escape HTML instead of passing through" },
 ];
 
 export function OptionsPanel({ options, onChange }: OptionsPanelProps) {

@@ -1,6 +1,9 @@
 use ironmark::{ParseOptions, parse as ironmark_parse, parse_to_ast as ironmark_parse_to_ast};
 use wasm_bindgen::prelude::*;
 
+/// Maximum input size for WASM: 10 MB
+const WASM_MAX_INPUT_SIZE: usize = 10 * 1024 * 1024;
+
 fn build_options(
     hard_breaks: Option<bool>,
     enable_highlight: Option<bool>,
@@ -9,6 +12,7 @@ fn build_options(
     enable_tables: Option<bool>,
     enable_autolink: Option<bool>,
     enable_task_lists: Option<bool>,
+    disable_raw_html: Option<bool>,
 ) -> ParseOptions {
     ParseOptions {
         hard_breaks: hard_breaks.unwrap_or(true),
@@ -18,6 +22,9 @@ fn build_options(
         enable_tables: enable_tables.unwrap_or(true),
         enable_autolink: enable_autolink.unwrap_or(true),
         enable_task_lists: enable_task_lists.unwrap_or(true),
+        disable_raw_html: disable_raw_html.unwrap_or(false),
+        max_nesting_depth: 128,
+        max_input_size: WASM_MAX_INPUT_SIZE,
     }
 }
 
@@ -31,6 +38,7 @@ pub fn parse(
     enable_tables: Option<bool>,
     enable_autolink: Option<bool>,
     enable_task_lists: Option<bool>,
+    disable_raw_html: Option<bool>,
 ) -> String {
     ironmark_parse(
         markdown,
@@ -42,6 +50,7 @@ pub fn parse(
             enable_tables,
             enable_autolink,
             enable_task_lists,
+            disable_raw_html,
         ),
     )
 }
@@ -56,6 +65,7 @@ pub fn parse_to_ast(
     enable_tables: Option<bool>,
     enable_autolink: Option<bool>,
     enable_task_lists: Option<bool>,
+    disable_raw_html: Option<bool>,
 ) -> Result<String, JsValue> {
     let ast = ironmark_parse_to_ast(
         markdown,
@@ -67,6 +77,7 @@ pub fn parse_to_ast(
             enable_tables,
             enable_autolink,
             enable_task_lists,
+            disable_raw_html,
         ),
     );
     serde_json::to_string(&ast)

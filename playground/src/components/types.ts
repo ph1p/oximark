@@ -9,6 +9,7 @@ export type ParseOptions = {
   enable_tables: boolean;
   enable_autolink: boolean;
   enable_task_lists: boolean;
+  disable_raw_html: boolean;
 };
 
 export const DEFAULT_PARSE_OPTIONS: ParseOptions = {
@@ -19,4 +20,5 @@ export const DEFAULT_PARSE_OPTIONS: ParseOptions = {
   enable_tables: true,
   enable_autolink: true,
   enable_task_lists: true,
+  disable_raw_html: false,
 };

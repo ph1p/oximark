@@ -216,6 +216,10 @@ impl<'a> InlineScanner<'a> {
                 }
                 if self.bytes[self.pos] == b'[' {
                     depth += 1;
+                    if depth > 32 {
+                        self.pos = saved;
+                        return None;
+                    }
                 }
                 if self.bytes[self.pos] == b']' {
                     if depth == 0 {

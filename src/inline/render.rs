@@ -1,5 +1,6 @@
 use super::*;
 use crate::ParseOptions;
+use crate::html::is_dangerous_url;
 
 static EM_CLOSE: [&str; 6] = ["</em>", "</em>", "</strong>", "</del>", "</mark>", "</u>"];
 static EM_OPEN: [&str; 6] = ["<em>", "<em>", "<strong>", "<del>", "<mark>", "<u>"];
@@ -22,7 +23,11 @@ impl<'a> InlineScanner<'a> {
                     out.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) });
                 }
                 InlineItem::RawHtml(start, end) => {
-                    out.push_str(&self.input[*start..*end]);
+                    if opts.disable_raw_html {
+                        escape_html_into(out, &self.input[*start..*end]);
+                    } else {
+                        out.push_str(&self.input[*start..*end]);
+                    }
                 }
                 InlineItem::Autolink(start, end, is_email) => {
                     let content = &self.input[*start as usize..*end as usize];
@@ -92,6 +97,7 @@ impl<'a> InlineScanner<'a> {
                         title,
                         is_image,
                     } = &self.links[*link_idx as usize];
+                    let safe = !is_dangerous_link_dest(dest, self.input);
                     if *is_image {
                         let alt_start = i + 1;
                         let mut alt_end = alt_start;
@@ -111,7 +117,9 @@ impl<'a> InlineScanner<'a> {
                         }
                         let alt = self.collect_alt_text(alt_start, alt_end);
                         out.push_str("<img src=\"");
-                        write_link_dest(out, dest, self.input);
+                        if safe {
+                            write_link_dest(out, dest, self.input);
+                        }
                         out.push_str("\" alt=\"");
                         out.push_str(&alt);
                         out.push('"');
@@ -124,7 +132,9 @@ impl<'a> InlineScanner<'a> {
                         i = alt_end;
                     } else {
                         out.push_str("<a href=\"");
-                        write_link_dest(out, dest, self.input);
+                        if safe {
+                            write_link_dest(out, dest, self.input);
+                        }
                         out.push('"');
                         if let Some(t) = title {
                             out.push_str(" title=\"");
@@ -172,6 +182,23 @@ impl<'a> InlineScanner<'a> {
             }
         }
         s
+    }
+}
+
+/// Check if a LinkDest points to a dangerous URL without allocating.
+#[inline]
+fn is_dangerous_link_dest(dest: &LinkDest, input: &str) -> bool {
+    match dest {
+        LinkDest::Range(s, e) => {
+            let s = *s as usize;
+            let e = *e as usize;
+            if s < e {
+                is_dangerous_url(&input[s..e])
+            } else {
+                false
+            }
+        }
+        LinkDest::Owned(d) => is_dangerous_url(d),
     }
 }
 

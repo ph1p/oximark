@@ -1,5 +1,8 @@
 use super::*;
 
+/// Maximum number of delimiter runs tracked before flushing remaining text as literals.
+const MAX_DELIM_RUNS: usize = 10_000;
+
 impl<'a> InlineScanner<'a> {
     pub(super) fn scan_all(&mut self) {
         let mut text_start = self.pos;
@@ -7,6 +10,12 @@ impl<'a> InlineScanner<'a> {
         let len = bytes.len();
 
         while self.pos < len {
+            // If we've accumulated too many delimiter runs, flush remaining as text
+            if self.delims.len() >= MAX_DELIM_RUNS {
+                self.flush_text_range(text_start, len);
+                self.pos = len;
+                return;
+            }
             let b = bytes[self.pos];
             if SPECIAL[b as usize] == 0 {
                 self.pos += 1;

@@ -159,6 +159,50 @@ pub(crate) fn encode_url_escaped_into(out: &mut String, url: &str) {
     }
 }
 
+/// Returns `true` if the URL uses a dangerous scheme (`javascript:`, `vbscript:`, `data:`).
+/// Data URIs with an image MIME type (`data:image/...`) are allowed.
+#[inline]
+pub(crate) fn is_dangerous_url(url: &str) -> bool {
+    let bytes = url.trim().as_bytes();
+    if bytes.len() < 5 {
+        return false;
+    }
+    if bytes.len() >= 11
+        && bytes[..11]
+            .iter()
+            .zip(b"javascript:")
+            .all(|(a, b)| a.to_ascii_lowercase() == *b)
+    {
+        return true;
+    }
+    if bytes.len() >= 9
+        && bytes[..9]
+            .iter()
+            .zip(b"vbscript:")
+            .all(|(a, b)| a.to_ascii_lowercase() == *b)
+    {
+        return true;
+    }
+    if bytes.len() >= 5
+        && bytes[..5]
+            .iter()
+            .zip(b"data:")
+            .all(|(a, b)| a.to_ascii_lowercase() == *b)
+    {
+        // Allow data:image/
+        if bytes.len() >= 11
+            && bytes[5..11]
+                .iter()
+                .zip(b"image/")
+                .all(|(a, b)| a.to_ascii_lowercase() == *b)
+        {
+            return false;
+        }
+        return true;
+    }
+    false
+}
+
 #[inline(always)]
 pub(crate) fn trim_cr(line: &str) -> &str {
     line.strip_suffix('\r').unwrap_or(line)

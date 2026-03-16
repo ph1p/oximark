@@ -26,7 +26,17 @@ use std::borrow::Cow;
 /// assert!(html.contains("<strong>bold</strong>"));
 /// ```
 pub fn parse(markdown: &str, options: &ParseOptions) -> String {
-    let mut parser = BlockParser::new(markdown, options.enable_tables, options.enable_task_lists);
+    let markdown = if options.max_input_size > 0 && markdown.len() > options.max_input_size {
+        // Truncate at a valid UTF-8 boundary
+        let mut end = options.max_input_size;
+        while end > 0 && !markdown.is_char_boundary(end) {
+            end -= 1;
+        }
+        &markdown[..end]
+    } else {
+        markdown
+    };
+    let mut parser = BlockParser::new(markdown, options);
     let doc = parser.parse();
     let refs = parser.ref_defs;
     let mut out = String::with_capacity(markdown.len() + markdown.len() / 2);
@@ -54,7 +64,16 @@ pub fn parse(markdown: &str, options: &ParseOptions) -> String {
 /// }
 /// ```
 pub fn parse_to_ast(markdown: &str, options: &ParseOptions) -> Block {
-    let mut parser = BlockParser::new(markdown, options.enable_tables, options.enable_task_lists);
+    let markdown = if options.max_input_size > 0 && markdown.len() > options.max_input_size {
+        let mut end = options.max_input_size;
+        while end > 0 && !markdown.is_char_boundary(end) {
+            end -= 1;
+        }
+        &markdown[..end]
+    } else {
+        markdown
+    };
+    let mut parser = BlockParser::new(markdown, options);
     parser.parse()
 }
 
@@ -347,10 +366,11 @@ pub(crate) struct BlockParser<'a> {
     enable_task_lists: bool,
     open_blockquotes: usize,
     list_indent_sum: usize,
+    max_nesting_depth: usize,
 }
 
 impl<'a> BlockParser<'a> {
-    pub fn new(input: &'a str, enable_tables: bool, enable_task_lists: bool) -> Self {
+    pub fn new(input: &'a str, options: &ParseOptions) -> Self {
         let mut doc = OpenBlock::new(OpenBlockType::Document);
         let estimated_blocks = (input.len() / 50).clamp(8, 256);
         doc.children = Vec::with_capacity(estimated_blocks);
@@ -360,10 +380,11 @@ impl<'a> BlockParser<'a> {
             input,
             ref_defs: LinkRefMap::default(),
             open,
-            enable_tables,
-            enable_task_lists,
+            enable_tables: options.enable_tables,
+            enable_task_lists: options.enable_task_lists,
             open_blockquotes: 0,
             list_indent_sum: 0,
+            max_nesting_depth: options.max_nesting_depth,
         }
     }
 

@@ -16,3 +16,4 @@ rust-toolchain.toml
 *.rs
 .releaserc.cjs
 .gitignore
+CLAUDE.md

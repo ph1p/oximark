@@ -6,7 +6,9 @@ Fast Markdown to HTML/AST parser written in Rust with **zero third-party** parsi
 
 ## Options
 
-All options default to `true`.
+### Extensions
+
+All extension options default to `true`.
 
 | Option        | JS (`camelCase`)      | Rust (`snake_case`)    | Description                    |
 | ------------- | --------------------- | ---------------------- | ------------------------------ |
@@ -17,6 +19,18 @@ All options default to `true`.
 | Tables        | `enableTables`        | `enable_tables`        | Pipe table syntax              |
 | Autolink      | `enableAutolink`      | `enable_autolink`      | Bare URLs & emails → `<a>`     |
 | Task lists    | `enableTaskLists`     | `enable_task_lists`    | `- [ ]` / `- [x]` checkboxes   |
+
+### Security
+
+| Option           | JS (`camelCase`)    | Rust (`snake_case`)   | Default          | Description                                           |
+| ---------------- | ------------------- | --------------------- | ---------------- | ----------------------------------------------------- |
+| Disable raw HTML | `disableRawHtml`    | `disable_raw_html`    | `false`          | Escape HTML blocks & inline HTML instead of passing through |
+| Max nesting      | —                   | `max_nesting_depth`   | `128`            | Limit blockquote/list nesting depth (DoS prevention)  |
+| Max input size   | —                   | `max_input_size`      | `0` (no limit)   | Truncate input beyond this byte count                 |
+
+> In the WASM build, `max_nesting_depth` is fixed at `128` and `max_input_size` at `10 MB`.
+
+Dangerous URI schemes (`javascript:`, `vbscript:`, `data:` except `data:image/…`) are **always** stripped from link and image destinations, regardless of options.
 
 ## JavaScript / TypeScript
 
@@ -34,6 +48,9 @@ WASM is embedded and loaded synchronously — no `init()` needed:
 import { parse } from "ironmark";
 
 const html = parse("# Hello\n\nThis is **fast**.");
+
+// safe mode for untrusted input
+const safe = parse(userInput, { disableRawHtml: true });
 ```
 
 ### AST Output
@@ -89,6 +106,13 @@ fn main() {
     let html = parse("line one\nline two", &ParseOptions {
         hard_breaks: false,
         enable_strikethrough: false,
+        ..Default::default()
+    });
+
+    // safe mode for untrusted input
+    let html = parse("<script>alert(1)</script>", &ParseOptions {
+        disable_raw_html: true,
+        max_input_size: 1_000_000, // 1 MB
         ..Default::default()
     });
 }

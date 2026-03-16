@@ -15,6 +15,8 @@ export interface ParseOptions {
   enableAutolink?: boolean;
   /** Enable GitHub-style task lists (`- [ ] unchecked`, `- [x] checked`). Default: true. */
   enableTaskLists?: boolean;
+  /** When true, raw HTML is escaped instead of passed through (XSS prevention). Default: false. */
+  disableRawHtml?: boolean;
 }
 
 /**

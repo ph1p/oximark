@@ -463,6 +463,15 @@ impl<'a> BlockParser<'a> {
             }
 
             if indent <= 3 && first_byte == b'>' {
+                if self.open.len() >= self.max_nesting_depth {
+                    // Nesting depth exceeded — treat as paragraph text
+                    line.advance_to_nonspace();
+                    let mut block =
+                        OpenBlock::with_content_capacity(OpenBlockType::Paragraph, 128);
+                    block.content.push_str(line.remainder());
+                    self.open.push(block);
+                    return;
+                }
                 line.advance_to_nonspace();
                 advance_past_blockquote_marker(&mut line);
                 self.open.push(OpenBlock::new(OpenBlockType::BlockQuote));
@@ -484,6 +493,14 @@ impl<'a> BlockParser<'a> {
                         return;
                     }
                     if let Some(marker) = parse_list_marker(rest) {
+                        if self.open.len() >= self.max_nesting_depth {
+                            line.advance_to_nonspace();
+                            let mut block =
+                                OpenBlock::with_content_capacity(OpenBlockType::Paragraph, 128);
+                            block.content.push_str(line.remainder());
+                            self.open.push(block);
+                            return;
+                        }
                         let marker_indent = indent;
                         line.advance_to_nonspace();
                         let rest_is_blank = self.start_list_item(&mut line, marker, marker_indent);
@@ -536,6 +553,14 @@ impl<'a> BlockParser<'a> {
                     return;
                 }
                 if let Some(marker) = parse_list_marker(rest) {
+                    if self.open.len() >= self.max_nesting_depth {
+                        line.advance_to_nonspace();
+                        let mut block =
+                            OpenBlock::with_content_capacity(OpenBlockType::Paragraph, 128);
+                        block.content.push_str(line.remainder());
+                        self.open.push(block);
+                        return;
+                    }
                     let marker_indent = indent;
                     line.advance_to_nonspace();
                     let rest_is_blank = self.start_list_item(&mut line, marker, marker_indent);

@@ -103,6 +103,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       enableTables: o.enable_tables,
       enableAutolink: o.enable_autolink,
       enableTaskLists: o.enable_task_lists,
+      disableRawHtml: o.disable_raw_html,
     };
     const html = parse(md, opts);
     args.onStatusChange(`${(performance.now() - t0).toFixed(2)}ms`);
