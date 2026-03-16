@@ -466,8 +466,7 @@ impl<'a> BlockParser<'a> {
                 if self.open.len() >= self.max_nesting_depth {
                     // Nesting depth exceeded — treat as paragraph text
                     line.advance_to_nonspace();
-                    let mut block =
-                        OpenBlock::with_content_capacity(OpenBlockType::Paragraph, 128);
+                    let mut block = OpenBlock::with_content_capacity(OpenBlockType::Paragraph, 128);
                     block.content.push_str(line.remainder());
                     self.open.push(block);
                     return;

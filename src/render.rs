@@ -341,7 +341,10 @@ fn render_nested_tight_list<'a>(
             out.reserve(total_close_bytes);
             // SAFETY: reserved enough capacity, all bytes are ASCII.
             // Each nesting level writes at most "</li>\n" (6) + "</ul>\n"/"</ol>\n" (6) = 12 bytes.
-            debug_assert!(total_close_bytes >= 12, "close bytes must cover at least one level");
+            debug_assert!(
+                total_close_bytes >= 12,
+                "close bytes must cover at least one level"
+            );
             unsafe {
                 let buf = out.as_mut_vec();
                 debug_assert!(buf.capacity() - buf.len() >= total_close_bytes);

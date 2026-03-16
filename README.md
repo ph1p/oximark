@@ -22,11 +22,11 @@ All extension options default to `true`.
 
 ### Security
 
-| Option           | JS (`camelCase`)    | Rust (`snake_case`)   | Default          | Description                                           |
-| ---------------- | ------------------- | --------------------- | ---------------- | ----------------------------------------------------- |
-| Disable raw HTML | `disableRawHtml`    | `disable_raw_html`    | `false`          | Escape HTML blocks & inline HTML instead of passing through |
-| Max nesting      | —                   | `max_nesting_depth`   | `128`            | Limit blockquote/list nesting depth (DoS prevention)  |
-| Max input size   | —                   | `max_input_size`      | `0` (no limit)   | Truncate input beyond this byte count                 |
+| Option           | JS (`camelCase`) | Rust (`snake_case`) | Default        | Description                                                 |
+| ---------------- | ---------------- | ------------------- | -------------- | ----------------------------------------------------------- |
+| Disable raw HTML | `disableRawHtml` | `disable_raw_html`  | `false`        | Escape HTML blocks & inline HTML instead of passing through |
+| Max nesting      | —                | `max_nesting_depth` | `128`          | Limit blockquote/list nesting depth (DoS prevention)        |
+| Max input size   | —                | `max_input_size`    | `0` (no limit) | Truncate input beyond this byte count                       |
 
 > In the WASM build, `max_nesting_depth` is fixed at `128` and `max_input_size` at `10 MB`.
 

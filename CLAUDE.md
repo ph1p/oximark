@@ -33,6 +33,7 @@ pnpm lint                     # oxlint
 Two-phase pipeline: **block parsing → inline parsing → HTML rendering**.
 
 ### Phase 1: Block parsing (`src/block/`)
+
 - `mod.rs` — public `parse()` and `parse_to_ast()` entry points; block-level structures (open-block stack)
 - `parser.rs` — line-by-line block parser; container tracking (blockquotes, lists)
 - `leaf_blocks.rs` — ATX/setext headings, code blocks, thematic breaks
@@ -40,28 +41,33 @@ Two-phase pipeline: **block parsing → inline parsing → HTML rendering**.
 - `link_ref_def.rs` — link reference definition extraction
 
 ### Phase 2: Inline parsing (`src/inline/`)
+
 - `mod.rs` — inline parser entry, delimiter run algorithm (emphasis, extensions)
 - `scanner.rs` — character-level scanning, autolinks, entity resolution
 - `links.rs` — link/image bracket matching, reference resolution
 - `render.rs` — inline content → HTML string output
 
 ### HTML rendering (`src/render.rs`)
+
 - Stack-based block renderer that calls inline parsing for leaf block content
 - Receives `&ParseOptions` to control extension behavior
 
 ### Supporting modules
+
 - `ast.rs` — AST node types (`Block` enum, `ListKind`, `TableData`, `TableAlignment`)
 - `html.rs` — HTML escaping, URI sanitization, dangerous-protocol stripping
 - `entities/` — HTML5 entity lookup tables
 - `lib.rs` — `ParseOptions` struct, public API re-exports
 
 ### WASM layer (`wasm/`)
+
 - `wasm/src/lib.rs` — wasm-bindgen bindings exposing `parse()` and `parseToAst()`
 - `wasm/node.js` / `wasm/web.js` — JS entry points (node: sync embedded, web: async init)
 - `wasm/shared.js` — shared JS logic between node/web
 - `wasm/index.d.ts` — TypeScript type definitions
 
 ### Playground (`playground/`)
+
 - Vite + TypeScript web app for interactive testing
 
 ## Key conventions
