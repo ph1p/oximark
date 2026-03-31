@@ -132,7 +132,7 @@ fn main() {
         Block::Document { children } => {
             println!("top-level blocks: {}", children.len());
         }
-        _ => unreachable!("root node is always Document"),
+        _ => unreachable!("root nodes always Document"),
     }
 }
 ```
