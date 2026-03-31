@@ -13,6 +13,8 @@ use crate::entities;
 use crate::html::trim_cr;
 use crate::inline::{InlineBuffers, LinkRefMap};
 use crate::render::render_block;
+use compact_str::CompactString;
+use smallvec::SmallVec;
 use std::borrow::Cow;
 
 /// Parse a Markdown string and return the rendered HTML.
@@ -268,11 +270,13 @@ struct FencedCodeData {
     info: String,
 }
 
+type TableRow = SmallVec<[CompactString; 8]>;
+
 #[derive(Clone, Debug)]
 struct TableData {
-    alignments: Vec<TableAlignment>,
-    header: Vec<String>,
-    rows: Vec<Vec<String>>,
+    alignments: SmallVec<[TableAlignment; 8]>,
+    header: TableRow,
+    rows: Vec<TableRow>,
 }
 
 #[derive(Clone, Debug)]
@@ -306,7 +310,7 @@ enum HtmlBlockEnd {
 struct OpenBlock {
     block_type: OpenBlockType,
     content: String,
-    children: Vec<Block>,
+    children: SmallVec<[Block; 4]>,
     had_blank_in_item: bool,
     list_has_blank_between: bool,
     content_has_newline: bool,
@@ -321,7 +325,7 @@ impl OpenBlock {
         Self {
             block_type,
             content: String::new(),
-            children: Vec::new(),
+            children: SmallVec::new(),
             had_blank_in_item: false,
             list_has_blank_between: false,
             content_has_newline: false,
@@ -347,7 +351,7 @@ impl OpenBlock {
                 started_blank,
             },
             content: String::new(),
-            children: Vec::with_capacity(2),
+            children: SmallVec::new(),
             had_blank_in_item: false,
             list_has_blank_between: false,
             content_has_newline: false,
@@ -373,7 +377,7 @@ impl<'a> BlockParser<'a> {
     pub fn new(input: &'a str, options: &ParseOptions) -> Self {
         let mut doc = OpenBlock::new(OpenBlockType::Document);
         let estimated_blocks = (input.len() / 50).clamp(8, 256);
-        doc.children = Vec::with_capacity(estimated_blocks);
+        doc.children = SmallVec::with_capacity(estimated_blocks);
         let mut open = Vec::with_capacity(16);
         open.push(doc);
         Self {
@@ -418,7 +422,7 @@ impl<'a> BlockParser<'a> {
         }
         let doc = self.open.pop().unwrap();
         Block::Document {
-            children: doc.children,
+            children: doc.children.into_vec(),
         }
     }
 

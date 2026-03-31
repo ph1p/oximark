@@ -256,6 +256,7 @@ impl<'a> InlineScanner<'a> {
         }
     }
 
+    #[inline]
     pub(super) fn scan_delim_run(&mut self, marker: u8) {
         let run_start = self.pos;
         let mut count = 0;
@@ -348,6 +349,7 @@ impl<'a> InlineScanner<'a> {
         self.items.push(InlineItem::LinkEnd);
     }
 
+    #[inline]
     pub(super) fn skip_ws(&mut self) {
         while self.pos < self.bytes.len() && matches!(self.bytes[self.pos], b' ' | b'\t' | b'\n') {
             self.pos += 1;

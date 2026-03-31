@@ -261,7 +261,7 @@ impl<'a> BlockParser<'a> {
                                 TableData {
                                     alignments,
                                     header,
-                                    rows: Vec::with_capacity(16),
+                                    rows: Vec::with_capacity(8),
                                 },
                             ))));
                             return;
@@ -650,10 +650,10 @@ impl<'a> BlockParser<'a> {
     pub(super) fn finalize_block(&mut self, block: OpenBlock) -> Option<Block> {
         match block.block_type {
             OpenBlockType::Document => Some(Block::Document {
-                children: block.children,
+                children: block.children.into_vec(),
             }),
             OpenBlockType::BlockQuote => Some(Block::BlockQuote {
-                children: block.children,
+                children: block.children.into_vec(),
             }),
             OpenBlockType::ListItem { .. } => {
                 let had_blank = block.had_blank_in_item;
@@ -661,7 +661,7 @@ impl<'a> BlockParser<'a> {
                 let blank_between_children = had_blank && block.children.len() >= 2;
 
                 let item = Block::ListItem {
-                    children: block.children,
+                    children: block.children.into_vec(),
                     checked: block.checked,
                 };
                 let parent = self.open.last_mut().unwrap();
@@ -722,9 +722,13 @@ impl<'a> BlockParser<'a> {
                 literal: block.content,
             }),
             OpenBlockType::Table(td) => Some(Block::Table(Box::new(crate::ast::TableData {
-                alignments: td.alignments,
-                header: td.header,
-                rows: td.rows,
+                alignments: td.alignments.into_vec(),
+                header: td.header.into_iter().map(|s| s.into_string()).collect(),
+                rows: td
+                    .rows
+                    .into_iter()
+                    .map(|row| row.into_iter().map(|s| s.into_string()).collect())
+                    .collect(),
             }))),
             OpenBlockType::Paragraph => {
                 if block.content.is_empty() {

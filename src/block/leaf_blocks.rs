@@ -1,4 +1,6 @@
 use super::*;
+use compact_str::CompactString;
+use smallvec::SmallVec;
 
 #[inline(always)]
 pub(super) fn memchr_newline(bytes: &[u8], start: usize) -> usize {
@@ -8,6 +10,7 @@ pub(super) fn memchr_newline(bytes: &[u8], start: usize) -> usize {
     }
 }
 
+#[inline]
 pub(super) fn is_thematic_break(line: &str) -> bool {
     let bytes = line.as_bytes();
     let mut marker: u8 = 0;
@@ -29,6 +32,7 @@ pub(super) fn is_thematic_break(line: &str) -> bool {
     count >= 3
 }
 
+#[inline]
 pub(super) fn parse_atx_heading(line: &str) -> Option<(u8, &str)> {
     let bytes = line.as_bytes();
     if bytes.is_empty() || bytes[0] != b'#' {
@@ -78,6 +82,7 @@ pub(super) fn strip_closing_hashes(s: &str) -> &str {
     }
 }
 
+#[inline]
 pub(super) fn parse_setext_underline(line: &str) -> Option<u8> {
     let trimmed = line.trim();
     if trimmed.is_empty() {
@@ -94,6 +99,7 @@ pub(super) fn parse_setext_underline(line: &str) -> Option<u8> {
     Some(if ch == b'=' { 1 } else { 2 })
 }
 
+#[inline]
 pub(super) fn parse_fence_start(line: &str) -> Option<(u8, usize, &str)> {
     let bytes = line.as_bytes();
     if bytes.is_empty() {
@@ -159,7 +165,8 @@ pub(super) fn is_closing_fence(line: &[u8], fence_char: u8, fence_len: usize) ->
     true
 }
 
-pub(super) fn parse_table_separator(line: &str) -> Option<Vec<TableAlignment>> {
+#[inline]
+pub(super) fn parse_table_separator(line: &str) -> Option<SmallVec<[TableAlignment; 8]>> {
     let trimmed = trim_space_tab(line);
     if trimmed.is_empty() {
         return None;
@@ -174,7 +181,7 @@ pub(super) fn parse_table_separator(line: &str) -> Option<Vec<TableAlignment>> {
 
     memchr::memchr(b'|', trimmed.as_bytes())?;
 
-    let mut alignments = Vec::new();
+    let mut alignments = SmallVec::new();
     for cell in inner.split('|') {
         let c = trim_space_tab(cell);
         if c.is_empty() {
@@ -207,7 +214,7 @@ pub(super) fn parse_table_separator(line: &str) -> Option<Vec<TableAlignment>> {
     Some(alignments)
 }
 
-pub(super) fn parse_table_row(line: &str, num_cols: usize) -> Vec<String> {
+pub(super) fn parse_table_row(line: &str, num_cols: usize) -> SmallVec<[CompactString; 8]> {
     let trimmed = trim_space_tab(line);
 
     let inner = trimmed.strip_prefix('|').unwrap_or(trimmed);
@@ -228,30 +235,30 @@ pub(super) fn parse_table_row(line: &str, num_cols: usize) -> Vec<String> {
     });
 
     if !has_escaped_pipe {
-        let mut cells = Vec::with_capacity(num_cols);
+        let mut cells: SmallVec<[CompactString; 8]> = SmallVec::with_capacity(num_cols);
         let bytes = inner.as_bytes();
         let mut start = 0;
         while cells.len() < num_cols {
             match memchr::memchr(b'|', &bytes[start..]) {
                 Some(offset) => {
                     let end = start + offset;
-                    cells.push(trim_space_tab(&inner[start..end]).to_string());
+                    cells.push(CompactString::new(trim_space_tab(&inner[start..end])));
                     start = end + 1;
                 }
                 None => {
-                    cells.push(trim_space_tab(&inner[start..]).to_string());
+                    cells.push(CompactString::new(trim_space_tab(&inner[start..])));
                     break;
                 }
             }
         }
         while cells.len() < num_cols {
-            cells.push(String::new());
+            cells.push(CompactString::const_new(""));
         }
         return cells;
     }
 
-    let mut cells = Vec::with_capacity(num_cols);
-    let mut current = String::new();
+    let mut cells: SmallVec<[CompactString; 8]> = SmallVec::with_capacity(num_cols);
+    let mut current = CompactString::default();
     let bytes = inner.as_bytes();
     let mut i = 0;
     let mut seg_start = 0;
@@ -262,7 +269,7 @@ pub(super) fn parse_table_row(line: &str, num_cols: usize) -> Vec<String> {
             seg_start = i;
         } else if bytes[i] == b'|' {
             current.push_str(&inner[seg_start..i]);
-            cells.push(trim_space_tab(&current).to_string());
+            cells.push(CompactString::new(trim_space_tab(&current)));
             current.clear();
             i += 1;
             seg_start = i;
@@ -271,10 +278,10 @@ pub(super) fn parse_table_row(line: &str, num_cols: usize) -> Vec<String> {
         }
     }
     current.push_str(&inner[seg_start..]);
-    cells.push(trim_space_tab(&current).to_string());
+    cells.push(CompactString::new(trim_space_tab(&current)));
 
     while cells.len() < num_cols {
-        cells.push(String::new());
+        cells.push(CompactString::const_new(""));
     }
     cells.truncate(num_cols);
     cells
@@ -363,6 +370,7 @@ pub(super) fn parse_list_marker(line: &str) -> Option<ListMarkerInfo> {
     None
 }
 
+#[inline]
 pub(super) fn can_interrupt_paragraph(marker: &ListMarkerInfo) -> bool {
     if marker.is_empty_item {
         return false;

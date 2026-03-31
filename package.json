@@ -68,16 +68,16 @@
     "@semantic-release/github": "^12.0.6",
     "@semantic-release/npm": "^13.1.5",
     "@semantic-release/release-notes-generator": "^14.1.0",
-    "conventional-changelog-conventionalcommits": "^9.3.0",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
     "markdown-wasm": "^1.2.0",
     "md4w": "^0.2.7",
-    "oxfmt": "^0.41.0",
-    "oxlint": "^1.56.0",
+    "oxfmt": "^0.43.0",
+    "oxlint": "^1.58.0",
     "semantic-release": "^25.0.3"
   },
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@10.33.0",
   "prepack": "pnpm build"
 }

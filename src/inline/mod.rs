@@ -17,6 +17,7 @@ pub(crate) struct LinkReference {
 
 pub(crate) type LinkRefMap = FxHashMap<String, LinkReference>;
 
+#[inline]
 pub(crate) fn normalize_reference_label(label: &str) -> Cow<'_, str> {
     let trimmed = label.trim();
     let bytes = trimmed.as_bytes();
@@ -296,6 +297,7 @@ fn render_em_delim(out: &mut String, d: &EmDelim) {
     }
 }
 
+#[inline]
 fn scan_em_delims(raw: &str, bytes: &[u8], skip_escapes: bool, buf: &mut Vec<EmDelim>) {
     buf.clear();
     let len = bytes.len();
@@ -348,6 +350,7 @@ fn scan_em_delims(raw: &str, bytes: &[u8], skip_escapes: bool, buf: &mut Vec<EmD
     }
 }
 
+#[inline]
 fn emit_emphasis_only(out: &mut String, raw: &str, bytes: &[u8], em_buf: &mut Vec<EmDelim>) {
     scan_em_delims(raw, bytes, false, em_buf);
     if em_buf.is_empty() {

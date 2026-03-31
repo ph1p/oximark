@@ -95,6 +95,7 @@ static URL_HTML_SAFE: [bool; 256] = {
     t
 };
 
+#[inline]
 pub(crate) fn encode_url_escaped_into(out: &mut String, url: &str) {
     let bytes = url.as_bytes();
     let len = bytes.len();

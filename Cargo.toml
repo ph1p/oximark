@@ -30,8 +30,10 @@ crate-type = ["rlib"]
 serde = ["dep:serde"]
 
 [dependencies]
+compact_str = "0.8"
 memchr = "2"
 rustc-hash = "2"
+smallvec = { version = "1", features = ["union"] }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [workspace]
