@@ -144,6 +144,48 @@ Exported AST types:
 - `TableData`
 - `TableAlignment`
 
+## C / C++
+
+The crate compiles to a static library (`libironmark.a`) that exposes two C functions. A header is provided at `include/ironmark.h`.
+
+### Build the library
+
+```bash
+cargo build --release
+# output: target/release/libironmark.a
+```
+
+### Link
+
+```sh
+# Linux
+cc -o example example.c -L target/release -l ironmark -lpthread -ldl
+
+# macOS
+cc -o example example.c -L target/release -l ironmark \
+   -framework CoreFoundation -framework Security
+```
+
+### Usage
+
+```c
+#include "include/ironmark.h"
+#include <stdio.h>
+
+int main(void) {
+    char *html = ironmark_parse("# Hello\n\nThis is **fast**.");
+    if (html) {
+        printf("%s\n", html);
+        ironmark_free(html);
+    }
+    return 0;
+}
+```
+
+**Memory contract**: `ironmark_parse` returns a heap-allocated string. You **must** free it with `ironmark_free`. Passing any other pointer to `ironmark_free` is undefined behaviour. Both functions are null-safe: `ironmark_parse(NULL)` returns `NULL`; `ironmark_free(NULL)` is a no-op.
+
+Parsing always uses the default `ParseOptions` (all extensions enabled, `disable_raw_html` off). Options are not yet configurable through the C API.
+
 ## Benchmarks
 
 ![Benchmark results](benchmark/results.svg)
