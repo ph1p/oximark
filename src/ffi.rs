@@ -1,0 +1,41 @@
+use std::ffi::{CStr, CString, c_char};
+
+use crate::{ParseOptions, parse};
+
+/// Parse markdown input and return a heap-allocated HTML string.
+///
+/// The caller **must** free the returned pointer with [`ironmark_free`].
+/// Returns a null pointer if the input is null or contains invalid UTF-8.
+///
+/// # Safety
+///
+/// `input` must be a valid, null-terminated C string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ironmark_parse(input: *const c_char) -> *mut c_char {
+    if input.is_null() {
+        return std::ptr::null_mut();
+    }
+    // SAFETY: caller guarantees `input` is a valid null-terminated C string.
+    let c_str = unsafe { CStr::from_ptr(input) };
+    let Ok(markdown) = c_str.to_str() else {
+        return std::ptr::null_mut();
+    };
+    let html = parse(markdown, &ParseOptions::default());
+    match CString::new(html) {
+        Ok(c) => c.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Free a string previously returned by [`ironmark_parse`].
+///
+/// # Safety
+///
+/// `ptr` must be a pointer returned by `ironmark_parse`, or null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ironmark_free(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        // SAFETY: `ptr` was produced by `CString::into_raw` in `ironmark_parse`.
+        drop(unsafe { CString::from_raw(ptr) });
+    }
+}

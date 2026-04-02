@@ -24,7 +24,7 @@ exclude = [
 ]
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["staticlib", "rlib"]
 
 [features]
 serde = ["dep:serde"]

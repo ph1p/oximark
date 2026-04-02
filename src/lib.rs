@@ -57,6 +57,7 @@
 pub mod ast;
 mod block;
 mod entities;
+pub mod ffi;
 mod html;
 mod inline;
 mod render;
