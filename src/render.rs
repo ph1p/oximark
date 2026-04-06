@@ -191,7 +191,7 @@ fn render_one<'a>(
         Block::Table(td) => {
             let alignments = &td.alignments;
             let header = &td.header;
-            let rows = &td.rows;
+            let num_cols = td.num_cols;
             let all_none = alignments.iter().all(|a| *a == TableAlignment::None);
             out.push_str("<table>\n<thead>\n<tr>\n");
             for (i, cell) in header.iter().enumerate() {
@@ -200,27 +200,28 @@ fn render_one<'a>(
                 } else {
                     alignments.get(i).copied().unwrap_or(TableAlignment::None)
                 };
-                render_table_cell(out, cell, "th", align, refs, opts, bufs);
+                render_table_cell(out, cell.as_str(), "th", align, refs, opts, bufs);
             }
             out.push_str("</tr>\n</thead>\n");
-            if !rows.is_empty() {
+            let num_rows = if num_cols > 0 { td.rows.len() / num_cols } else { 0 };
+            if num_rows > 0 {
                 out.push_str("<tbody>\n");
                 if all_none {
-                    for row in rows {
+                    for r in 0..num_rows {
                         out.push_str("<tr>\n");
-                        for cell in row.iter() {
+                        for c in 0..num_cols {
                             out.push_str("<td>");
-                            parse_inline_pass(out, cell, refs, opts, bufs);
+                            parse_inline_pass(out, td.rows[r * num_cols + c].as_str(), refs, opts, bufs);
                             out.push_str("</td>\n");
                         }
                         out.push_str("</tr>\n");
                     }
                 } else {
-                    for row in rows {
+                    for r in 0..num_rows {
                         out.push_str("<tr>\n");
-                        for (i, cell) in row.iter().enumerate() {
-                            let align = alignments.get(i).copied().unwrap_or(TableAlignment::None);
-                            render_table_cell(out, cell, "td", align, refs, opts, bufs);
+                        for c in 0..num_cols {
+                            let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
+                            render_table_cell(out, td.rows[r * num_cols + c].as_str(), "td", align, refs, opts, bufs);
                         }
                         out.push_str("</tr>\n");
                     }
@@ -244,7 +245,14 @@ fn is_trivially_plain(s: &str) -> bool {
     if memchr::memchr(b'"', bytes).is_some() {
         return false;
     }
-    // Check for control characters (bytes < 0x20).
+    // Check for control characters (bytes < 0x20) using memchr2 on the two
+    // most common ones (\t=0x09, \n=0x0a), then a scalar scan for the rest.
+    // In practice control chars other than \t/\n are extremely rare in table
+    // cells and heading content, so the memchr2 early-exit covers almost all
+    // cases without a full linear scan.
+    if memchr::memchr2(b'\t', b'\n', bytes).is_some() {
+        return false;
+    }
     bytes.iter().all(|&b| b >= b' ')
 }
 

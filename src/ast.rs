@@ -1,3 +1,5 @@
+use compact_str::CompactString;
+
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Block {
@@ -25,7 +27,7 @@ pub enum Block {
         raw: String,
     },
     CodeBlock {
-        info: String,
+        info: CompactString,
         literal: String,
     },
     HtmlBlock {
@@ -39,8 +41,9 @@ pub enum Block {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TableData {
     pub alignments: Vec<TableAlignment>,
-    pub header: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+    pub num_cols: usize,
+    pub header: Vec<CompactString>,   // len == num_cols
+    pub rows: Vec<CompactString>,     // flat row-major, len == num_rows * num_cols
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

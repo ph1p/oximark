@@ -28,9 +28,11 @@ crate-type = ["staticlib", "rlib"]
 
 [features]
 serde = ["dep:serde"]
+# Enable md4c as a benchmark competitor (requires system md4c: brew install md4c)
+bench-md4c = []
 
 [dependencies]
-compact_str = "0.8"
+compact_str = { version = "0.8", features = ["serde"] }
 memchr = "2"
 rustc-hash = "2"
 smallvec = { version = "1", features = ["union"] }
@@ -38,6 +40,8 @@ serde = { version = "1", features = ["derive"], optional = true }
 
 [workspace]
 members = ["wasm"]
+
+[build-dependencies]
 
 [dev-dependencies]
 comrak = { version = "0.36", default-features = false }

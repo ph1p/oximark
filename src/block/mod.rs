@@ -41,7 +41,7 @@ pub fn parse(markdown: &str, options: &ParseOptions) -> String {
     let mut parser = BlockParser::new(markdown, options);
     let doc = parser.parse();
     let refs = parser.ref_defs;
-    let mut out = String::with_capacity(markdown.len() + markdown.len() / 2);
+    let mut out = String::with_capacity(markdown.len() * 2);
     let mut bufs = InlineBuffers::new();
     render_block(&doc, &refs, &mut out, options, &mut bufs);
     out
@@ -267,7 +267,7 @@ struct FencedCodeData {
     fence_char: u8,
     fence_len: usize,
     fence_indent: usize,
-    info: String,
+    info: CompactString,
 }
 
 type TableRow = SmallVec<[CompactString; 8]>;

@@ -31,6 +31,13 @@ pub(crate) fn escape_html_into(out: &mut String, input: &str) {
 
 #[inline(always)]
 fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
+    // Fast exit: if none of the four special chars exist, push the whole string.
+    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none()
+        && memchr::memchr(b'"', bytes).is_none()
+    {
+        out.push_str(input);
+        return;
+    }
     let mut last = 0;
     let mut i = 0;
     while i < len {
@@ -50,18 +57,34 @@ fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
 
 #[inline]
 fn escape_html_long(out: &mut String, input: &str, bytes: &[u8], len: usize) {
-    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none() && memchr::memchr(b'"', bytes).is_none() {
+    // Fast exit: if none of the four special chars exist, push the whole string.
+    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none()
+        && memchr::memchr(b'"', bytes).is_none()
+    {
         out.push_str(input);
         return;
     }
-
     let mut last = 0;
     let mut i = 0;
     while i < len {
-        // SAFETY: i < len == bytes.len(), offsets are in-bounds.
+        // Find the next special char using two parallel scans; take the closer hit.
+        let a = memchr::memchr3(b'&', b'<', b'>', &bytes[i..]);
+        let b_ = memchr::memchr(b'"', &bytes[i..]);
+        let advance = match (a, b_) {
+            (None, None) => {
+                // SAFETY: last <= len, i <= len.
+                out.push_str(unsafe { input.get_unchecked(last..len) });
+                return;
+            }
+            (Some(x), None) => x,
+            (None, Some(y)) => y,
+            (Some(x), Some(y)) => x.min(y),
+        };
+        i += advance;
+        // SAFETY: i < len (memchr guarantees offset < remaining slice length).
         let idx = unsafe { *HTML_ESCAPE.get_unchecked(*bytes.get_unchecked(i) as usize) };
         if idx != 0 {
-            // SAFETY: last <= i <= len, all within input.
+            // SAFETY: last <= i <= len, all within valid UTF-8 input.
             out.push_str(unsafe { input.get_unchecked(last..i) });
             out.push_str(HTML_ESCAPE_STRS[idx as usize]);
             last = i + 1;

@@ -97,27 +97,8 @@ pub(crate) fn normalize_reference_label(label: &str) -> Cow<'_, str> {
 
 const SPECIAL_ANY: u8 = 1;
 const SPECIAL_COMPLEX: u8 = 2;
-
-static SPECIAL: [u8; 256] = {
-    let mut t = [0u8; 256];
-    t[b'*' as usize] = SPECIAL_ANY;
-    t[b'_' as usize] = SPECIAL_ANY;
-    let both = SPECIAL_ANY | SPECIAL_COMPLEX;
-    t[b'\\' as usize] = both;
-    t[b'`' as usize] = both;
-    t[b'!' as usize] = both;
-    t[b'[' as usize] = both;
-    t[b']' as usize] = both;
-    t[b'<' as usize] = both;
-    t[b'&' as usize] = both;
-    t[b'\n' as usize] = both;
-    t[b'~' as usize] = both;
-    t[b'=' as usize] = both;
-    t[b'+' as usize] = both;
-    t[b':' as usize] = both;
-    t[b'@' as usize] = both;
-    t
-};
+/// Set on `>` and `"` — need HTML escaping in pre-scan but not a full inline parse.
+const SPECIAL_ESCAPE: u8 = 4;
 
 #[inline]
 pub(crate) fn parse_inline_pass(
@@ -130,37 +111,31 @@ pub(crate) fn parse_inline_pass(
     let bytes = raw.as_bytes();
 
     // Single-pass classification for the common "mostly plain text" case.
-    // This avoids constructing/scanning full inline state when no markdown syntax applies.
+    // Uses the options-specific SPECIAL table so disabled features don't trigger a
+    // full inline parse. Bytes with SPECIAL_COMPLEX set need the full scanner;
+    // SPECIAL_ANY-only bytes (just `*` and `_`) only need emphasis handling.
+    let special = bufs.special_for(opts);
     let mut has_emphasis = false;
     let mut has_breaks = false;
     let mut needs_html_escape = false;
     let mut requires_full_inline = false;
     for &b in bytes {
-        match b {
-            b'*' | b'_' => has_emphasis = true,
-            b'\\' | b'\n' => has_breaks = true,
-            b'>' | b'"' => needs_html_escape = true,
-            b'`' | b'!' | b'[' | b']' | b'<' | b'&' => {
-                requires_full_inline = true;
-                break;
+        let s = special[b as usize];
+        if s == 0 {
+            continue;
+        }
+        if s == SPECIAL_ESCAPE {
+            needs_html_escape = true;
+        } else if s & SPECIAL_COMPLEX != 0 {
+            match b {
+                b'\\' | b'\n' => has_breaks = true,
+                _ => {
+                    requires_full_inline = true;
+                    break;
+                }
             }
-            b'~' if opts.enable_strikethrough => {
-                requires_full_inline = true;
-                break;
-            }
-            b'=' if opts.enable_highlight => {
-                requires_full_inline = true;
-                break;
-            }
-            b'+' if opts.enable_underline => {
-                requires_full_inline = true;
-                break;
-            }
-            b':' | b'@' if opts.enable_autolink => {
-                requires_full_inline = true;
-                break;
-            }
-            _ => {}
+        } else {
+            has_emphasis = true;
         }
     }
 
@@ -485,17 +460,72 @@ pub(crate) struct InlineBuffers {
     brackets: Vec<BracketInfo>,
     links: Vec<LinkInfo>,
     em_delims: Vec<EmDelim>,
+    special: [u8; 256],
+    special_fingerprint: u8,
 }
 
 impl InlineBuffers {
     pub(crate) fn new() -> Self {
+        let opts = ParseOptions::default();
         Self {
-            items: Vec::new(),
-            delims: Vec::new(),
-            brackets: Vec::new(),
-            links: Vec::new(),
-            em_delims: Vec::new(),
+            items: Vec::with_capacity(64),
+            delims: Vec::with_capacity(16),
+            brackets: Vec::with_capacity(8),
+            links: Vec::with_capacity(8),
+            em_delims: Vec::with_capacity(16),
+            special: Self::build_special_table(&opts),
+            special_fingerprint: Self::opts_fingerprint(&opts),
         }
+    }
+
+    /// Returns a reference to the SPECIAL table for `opts`, rebuilding if the options changed.
+    #[inline]
+    pub(crate) fn special_for(&mut self, opts: &ParseOptions) -> &[u8; 256] {
+        let fp = Self::opts_fingerprint(opts);
+        if fp != self.special_fingerprint {
+            self.special = Self::build_special_table(opts);
+            self.special_fingerprint = fp;
+        }
+        &self.special
+    }
+
+    #[inline(always)]
+    fn opts_fingerprint(opts: &ParseOptions) -> u8 {
+        (opts.enable_strikethrough as u8)
+            | ((opts.enable_highlight as u8) << 1)
+            | ((opts.enable_underline as u8) << 2)
+            | ((opts.enable_autolink as u8) << 3)
+    }
+
+    fn build_special_table(opts: &ParseOptions) -> [u8; 256] {
+        let mut t = [0u8; 256];
+        t[b'*' as usize] = SPECIAL_ANY;
+        t[b'_' as usize] = SPECIAL_ANY;
+        let complex = SPECIAL_ANY | SPECIAL_COMPLEX;
+        t[b'\\' as usize] = complex;
+        t[b'`' as usize] = complex;
+        t[b'!' as usize] = complex;
+        t[b'[' as usize] = complex;
+        t[b']' as usize] = complex;
+        t[b'<' as usize] = complex;
+        t[b'&' as usize] = complex;
+        t[b'\n' as usize] = complex;
+        t[b'>' as usize] = SPECIAL_ESCAPE;
+        t[b'"' as usize] = SPECIAL_ESCAPE;
+        if opts.enable_strikethrough {
+            t[b'~' as usize] = complex;
+        }
+        if opts.enable_highlight {
+            t[b'=' as usize] = complex;
+        }
+        if opts.enable_underline {
+            t[b'+' as usize] = complex;
+        }
+        if opts.enable_autolink {
+            t[b':' as usize] = complex;
+            t[b'@' as usize] = complex;
+        }
+        t
     }
 }
 
@@ -585,6 +615,7 @@ struct InlineScanner<'a> {
     pos: usize,
     refs: &'a LinkRefMap,
     opts: &'a ParseOptions,
+    special: &'a [u8; 256],
     items: &'a mut Vec<InlineItem>,
     delims: &'a mut Vec<usize>,
     brackets: &'a mut Vec<BracketInfo>,
@@ -604,12 +635,17 @@ impl<'a> InlineScanner<'a> {
         bufs.delims.clear();
         bufs.brackets.clear();
         bufs.links.clear();
+        let special = bufs.special_for(opts) as *const [u8; 256];
         Self {
             input,
             bytes: input.as_bytes(),
             pos: 0,
             refs,
             opts,
+            // SAFETY: `special` points into `bufs.special` which lives as long as `bufs`.
+            // We hold `&mut bufs` for the lifetime of this scanner (bufs is not accessed again
+            // until the scanner is dropped), so the reference is valid for `'a`.
+            special: unsafe { &*special },
             items: &mut bufs.items,
             delims: &mut bufs.delims,
             brackets: &mut bufs.brackets,

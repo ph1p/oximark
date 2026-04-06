@@ -334,7 +334,7 @@ impl<'a> BlockParser<'a> {
                                     fence_char,
                                     fence_len,
                                     fence_indent: indent,
-                                    info: resolve_entities_and_escapes(info).into_owned(),
+                                    info: CompactString::from(resolve_entities_and_escapes(info).as_ref()),
                                 })),
                                 128,
                             ));
@@ -524,15 +524,14 @@ impl<'a> BlockParser<'a> {
                     return;
                 }
                 if let Some((fence_char, fence_len, info)) = parse_fence_start(rest) {
-                    self.open.push(OpenBlock::with_content_capacity(
-                        OpenBlockType::FencedCode(Box::new(FencedCodeData {
+                    self.open.push(OpenBlock::new(OpenBlockType::FencedCode(
+                        Box::new(FencedCodeData {
                             fence_char,
                             fence_len,
                             fence_indent: indent,
-                            info: resolve_entities_and_escapes(info).into_owned(),
-                        })),
-                        128,
-                    ));
+                            info: CompactString::from(resolve_entities_and_escapes(info).as_ref()),
+                        }),
+                    )));
                     return;
                 }
                 if let Some(end_condition) = parse_html_block_start(rest, false) {
@@ -714,22 +713,27 @@ impl<'a> BlockParser<'a> {
                 let trimmed_len = literal.trim_end_matches('\n').len();
                 literal.truncate(trimmed_len + 1); // keep exactly one trailing newline
                 Some(Block::CodeBlock {
-                    info: String::new(),
+                    info: CompactString::default(),
                     literal,
                 })
             }
             OpenBlockType::HtmlBlock { .. } => Some(Block::HtmlBlock {
                 literal: block.content,
             }),
-            OpenBlockType::Table(td) => Some(Block::Table(Box::new(crate::ast::TableData {
-                alignments: td.alignments.into_vec(),
-                header: td.header.into_iter().map(|s| s.into_string()).collect(),
-                rows: td
+            OpenBlockType::Table(td) => {
+                let num_cols = td.alignments.len();
+                let rows_flat: Vec<compact_str::CompactString> = td
                     .rows
                     .into_iter()
-                    .map(|row| row.into_iter().map(|s| s.into_string()).collect())
-                    .collect(),
-            }))),
+                    .flat_map(|row| row.into_iter())
+                    .collect();
+                Some(Block::Table(Box::new(crate::ast::TableData {
+                    alignments: td.alignments.into_vec(),
+                    num_cols,
+                    header: td.header.into_vec(),
+                    rows: rows_flat,
+                })))
+            }
             OpenBlockType::Paragraph => {
                 if block.content.is_empty() {
                     return None;

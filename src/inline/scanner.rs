@@ -17,9 +17,9 @@ impl<'a> InlineScanner<'a> {
                 return;
             }
             let b = bytes[self.pos];
-            if SPECIAL[b as usize] == 0 {
+            if self.special[b as usize] == 0 {
                 self.pos += 1;
-                while self.pos < len && SPECIAL[bytes[self.pos] as usize] == 0 {
+                while self.pos < len && self.special[bytes[self.pos] as usize] == 0 {
                     self.pos += 1;
                 }
                 continue;
@@ -173,7 +173,12 @@ impl<'a> InlineScanner<'a> {
                         self.pos += 1;
                     }
                 }
-                _ => unreachable!(),
+                _ => {
+                    // SPECIAL_ESCAPE bytes (b'>' and b'"') reach here; they are
+                    // plain text from the scanner's perspective — HTML escaping
+                    // happens at render time via escape_html_into on TextRange.
+                    self.pos += 1;
+                }
             }
         }
         self.flush_text_range(text_start, self.pos);

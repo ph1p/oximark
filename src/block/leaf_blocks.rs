@@ -380,3 +380,54 @@ pub(super) fn can_interrupt_paragraph(marker: &ListMarkerInfo) -> bool {
         ListKind::Ordered(_) => marker.start_num == 1,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn atx_heading_basic() {
+        assert_eq!(parse_atx_heading("# foo"), Some((1, "foo")));
+        assert_eq!(parse_atx_heading("## foo"), Some((2, "foo")));
+        assert_eq!(parse_atx_heading("###### foo"), Some((6, "foo")));
+        assert_eq!(parse_atx_heading("####### foo"), None);
+    }
+
+    #[test]
+    fn atx_heading_closing() {
+        assert_eq!(parse_atx_heading("# foo ##"), Some((1, "foo")));
+        assert_eq!(parse_atx_heading("## foo ##"), Some((2, "foo")));
+        assert_eq!(parse_atx_heading("# foo #"), Some((1, "foo")));
+    }
+
+    #[test]
+    fn thematic_break_basic() {
+        assert!(is_thematic_break("***"));
+        assert!(is_thematic_break("---"));
+        assert!(is_thematic_break("___"));
+        assert!(is_thematic_break(" * * *"));
+        assert!(!is_thematic_break("--"));
+    }
+
+    #[test]
+    fn fence_start_basic() {
+        assert_eq!(parse_fence_start("```"), Some((b'`', 3, "")));
+        assert_eq!(parse_fence_start("```rust"), Some((b'`', 3, "rust")));
+        assert_eq!(parse_fence_start("~~~"), Some((b'~', 3, "")));
+        assert_eq!(parse_fence_start("``"), None);
+    }
+
+    #[test]
+    fn list_marker_basic() {
+        let m = parse_list_marker("- foo");
+        assert!(m.is_some());
+        let m = m.unwrap();
+        assert_eq!(m.kind, ListKind::Bullet(b'-'));
+
+        let m = parse_list_marker("1. foo");
+        assert!(m.is_some());
+        let m = m.unwrap();
+        assert_eq!(m.kind, ListKind::Ordered(b'.'));
+        assert_eq!(m.start_num, 1);
+    }
+}

@@ -281,10 +281,11 @@ fn hard_breaks_option_converts_soft_breaks() {
         "<blockquote>\n<p>1<br />\n2</p>\n</blockquote>\n"
     );
 
-    assert_eq!(
-        parse("1\n2", &ParseOptions::default()),
-        "<p>1<br />\n2</p>\n"
-    );
+    let opts_soft = ParseOptions {
+        hard_breaks: false,
+        ..Default::default()
+    };
+    assert_eq!(parse("1\n2", &opts_soft), "<p>1\n2</p>\n");
 }
 
 // ── Strikethrough ──────────────────────────────────────────────────
@@ -391,7 +392,7 @@ fn tables_disabled() {
     };
     let md = "| A |\n| --- |\n| B |";
     let html = parse(md, &opts);
-    assert!(!html.contains("<table>"));
+    assert_eq!(html, "<p>| A |\n| --- |\n| B |</p>\n");
 }
 
 // ── Nesting ────────────────────────────────────────────────────────
