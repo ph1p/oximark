@@ -13,7 +13,8 @@ This file provides guidance to AI coding agents when working with code in this r
 cargo test --offline          # run all tests (spec + integration + doctests)
 cargo test --offline -- commonmark  # run only CommonMark spec tests
 cargo test --offline -- <name>      # run a specific test by name
-cargo bench                   # criterion benchmarks (benchmark/parse.rs)
+cargo bench                          # criterion benchmarks (benchmark/parse.rs)
+cargo bench --features bench-md4c   # include md4c (requires: brew install md4c)
 cargo fmt                     # format Rust code
 cargo clippy                  # lint (deny undocumented_unsafe_blocks)
 
@@ -28,6 +29,7 @@ pnpm fmt                      # cargo fmt && oxfmt --write
 pnpm lint                     # oxlint
 pnpm test                     # alias for cargo test --offline
 pnpm bench                    # cargo bench + generate report (benchmark/report.mjs)
+pnpm bench:full               # same but includes md4c (requires: brew install md4c)
 ```
 
 ## Architecture
@@ -78,9 +80,10 @@ Two-phase pipeline: **block parsing → inline parsing → HTML rendering**.
 
 ### Benchmark (`benchmark/`)
 
-- `benchmark/parse.rs` — criterion benchmarks comparing ironmark vs comrak, pulldown-cmark, markdown-it, markdown-rs
+- `benchmark/parse.rs` — criterion benchmarks comparing ironmark vs comrak, pulldown-cmark, markdown-it, markdown-rs; md4c included when `--features bench-md4c` is passed (requires system `md4c`: `brew install md4c`)
 - `benchmark/report.mjs` — generates SVG report from benchmark results
 - `benchmark/results.svg` — latest benchmark results chart
+- `benchmark/history/YYYY-MM-DD.csv` — dated snapshot written on each run (`date,group,parser,input_bytes,median_ns`); commit these to build a performance trend record
 
 ### Playground (`playground/`)
 

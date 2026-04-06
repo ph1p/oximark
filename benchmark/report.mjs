@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 
 const require = createRequire(import.meta.url);
 const ROOT = resolve(import.meta.dirname, "..");
-const CRITERION_DIR = join(ROOT, "target", "criterion");
+const HISTORY_DIR = join(ROOT, "benchmark", "history");
 
 // ─── Build WASM ─────────────────────────────────────────────────────
 
@@ -58,6 +58,8 @@ function genCodeBlocks(n = 100) {
   ).join("");
 }
 
+const allFeaturesInput = readFileSync(join(ROOT, "benchmark", "all_features.md"), "utf8");
+
 // ─── Run WASM benchmarks ────────────────────────────────────────────
 
 const { parse: ironmarkParse } = await import("../wasm/node.js");
@@ -71,23 +73,33 @@ const wasmParsers = {
   md4w: (input) => mdToHtml(input),
 };
 
-function runWasmBench(name, input, iterations = 500) {
+function runWasmBench(name, input, iterations = 200) {
+  // Measure each parser independently so JIT state doesn't bleed across.
+  // Use batch timing: time N iterations in one `performance.now()` pair to
+  // avoid per-call measurement overhead dominating sub-100µs inputs.
+  const BATCH = 10;
   const results = {};
+  const bytes = Buffer.byteLength(input, "utf8");
   for (const [lib, fn] of Object.entries(wasmParsers)) {
-    for (let i = 0; i < 50; i++) fn(input);
-    const times = [];
+    // Warmup: let JIT stabilise before recording.
+    for (let i = 0; i < 100; i++) fn(input);
+    const samples = [];
     for (let i = 0; i < iterations; i++) {
       const start = performance.now();
-      fn(input);
-      times.push(performance.now() - start);
+      for (let b = 0; b < BATCH; b++) fn(input);
+      samples.push((performance.now() - start) / BATCH);
     }
-    times.sort((a, b) => a - b);
+    samples.sort((a, b) => a - b);
+    const mid = Math.floor(samples.length / 2);
+    const median_ms =
+      samples.length % 2 === 0 ? (samples[mid - 1] + samples[mid]) / 2 : samples[mid];
+    const mean_ms = samples.reduce((a, b) => a + b, 0) / samples.length;
     results[lib] = {
-      median_ns: times[Math.floor(times.length / 2)] * 1e6,
-      mean_ns: (times.reduce((a, b) => a + b, 0) / times.length) * 1e6,
+      median_ns: median_ms * 1e6,
+      mean_ns: mean_ms * 1e6,
     };
   }
-  return { name, bytes: input.length, results };
+  return { name, bytes, results };
 }
 
 console.log("\nRunning WASM benchmarks...\n");
@@ -101,6 +113,10 @@ const wasmSections = [
   {
     title: "CommonMark Spec",
     benches: [runWasmBench("spec (all examples)", specMarkdown)],
+  },
+  {
+    title: "All Features",
+    benches: [runWasmBench("all features", allFeaturesInput)],
   },
   {
     title: "Document Sizes",
@@ -127,68 +143,43 @@ const wasmSections = [
 
 console.log("WASM benchmarks done.\n");
 
-// ─── Read Rust criterion results ────────────────────────────────────
+// ─── Read Rust results from history CSV ─────────────────────────────
 
-const KNOWN_RUST_LIBS = ["ironmark", "pulldown_cmark", "comrak", "markdown_rs"];
-
-function readCriterionResults() {
-  if (!existsSync(CRITERION_DIR)) return [];
-
+function readLatestHistoryCsv() {
+  if (!existsSync(HISTORY_DIR)) return [];
+  const files = readdirSync(HISTORY_DIR)
+    .filter((f) => /^\d{4}-\d{2}-\d{2}\.csv$/.test(f))
+    .sort();
+  if (files.length === 0) return [];
+  const latest = files[files.length - 1];
+  console.log(`Reading Rust results from benchmark/history/${latest}`);
+  const lines = readFileSync(join(HISTORY_DIR, latest), "utf8")
+    .trim()
+    .split("\n")
+    .filter((l) => l && !l.startsWith("date,"));
   const groups = new Map();
-
-  function walkSync(dir) {
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      if (!e.isDirectory() || e.name === "report") continue;
-      const full = join(dir, e.name);
-      const estPath = join(full, "new", "estimates.json");
-      if (existsSync(estPath)) {
-        const rel = full.slice(CRITERION_DIR.length + 1);
-        const parts = rel.split("/");
-        const libIdx = parts.findIndex((p) => KNOWN_RUST_LIBS.includes(p));
-        if (libIdx === -1) continue;
-        const groupName = parts.slice(0, libIdx).join("/");
-        const libName = parts[libIdx];
-        const label = parts.slice(libIdx + 1).join("/");
-        const bytes = parseInt(label) || 0;
-
-        const est = JSON.parse(readFileSync(estPath, "utf8"));
-        if (!groups.has(groupName)) groups.set(groupName, { bytes, results: {} });
-        groups.get(groupName).results[libName] = {
-          median_ns: est.median.point_estimate,
-          mean_ns: est.mean.point_estimate,
-        };
-      } else {
-        walkSync(full);
-      }
-    }
+  for (const line of lines) {
+    const [, group, parser, input_bytes, median_ns] = line.split(",");
+    if (!group || !parser || !median_ns) continue;
+    const bytes = parseInt(input_bytes) || 0;
+    if (!groups.has(group)) groups.set(group, { bytes, results: {} });
+    groups.get(group).results[parser] = { median_ns: parseFloat(median_ns) };
   }
-
-  walkSync(CRITERION_DIR);
-
-  return [...groups.entries()].map(([name, data]) => ({
-    name,
-    bytes: data.bytes,
-    results: data.results,
-  }));
+  return [...groups.entries()].map(([name, data]) => ({ name, bytes: data.bytes, results: data.results }));
 }
 
-const rustResults = readCriterionResults();
+const rustResults = readLatestHistoryCsv();
 const hasRust = rustResults.length > 0;
 
 if (!hasRust) {
-  console.log("No Rust criterion results found in target/criterion/.");
+  console.log("No Rust history CSV found in benchmark/history/ — run cargo bench first.");
 }
 
 const rustSections = [];
 if (hasRust) {
   const sectionOrder = [
     ["commonmark_spec", "CommonMark Spec"],
+    ["all_features", "All Features"],
     ["document_size", "Document Sizes"],
     ["block_types", "Block Types"],
     ["inline_heavy", "Inline-heavy"],
@@ -251,7 +242,7 @@ const BAR_W = CONTENT_W - CARD_PAD * 2 - LABEL_W - VALUE_W - TP_W - BAR_GAP * 3;
 const BAR_H = 20;
 const BAR_ROW_H = 28;
 
-const RUST_LIBS = ["ironmark", "pulldown_cmark", "comrak", "markdown_rs"];
+const RUST_LIBS = ["ironmark", "pulldown_cmark", "comrak", "markdown_rs", "markdown_it", "md4c"];
 const WASM_LIBS = ["ironmark", "markdown-wasm", "md4w"];
 
 const RUST_COLORS = {
@@ -259,6 +250,8 @@ const RUST_COLORS = {
   pulldown_cmark: "#1971c2",
   comrak: "#2f9e44",
   markdown_rs: "#c2185b",
+  markdown_it: "#6741d9",
+  md4c: "#d97706",
 };
 
 const WASM_COLORS = {
@@ -272,6 +265,8 @@ const RUST_LABELS = {
   pulldown_cmark: "pulldown-cmark",
   comrak: "comrak",
   markdown_rs: "markdown-rs",
+  markdown_it: "markdown-it",
+  md4c: "md4c",
 };
 
 const WASM_LABELS = {
@@ -436,7 +431,7 @@ totalY += 36;
 if (hasRust) {
   const rust = buildSvgSection(
     "Native Rust",
-    "ironmark vs pulldown-cmark vs comrak vs markdown-rs \u2014 cargo bench (criterion)",
+    "ironmark vs pulldown-cmark vs comrak vs markdown-rs vs md4c \u2014 cargo bench (criterion)",
     rustSections,
     RUST_LIBS,
     RUST_COLORS,

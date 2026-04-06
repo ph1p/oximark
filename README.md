@@ -190,6 +190,14 @@ Parsing always uses the default `ParseOptions` (all extensions enabled, `disable
 
 ![Benchmark results](benchmark/results.svg)
 
+Compares ironmark against pulldown-cmark, comrak, markdown-it, and markdown-rs. Results are also saved as `benchmark/results.csv`.
+
+```bash
+cargo bench                          # run all benchmarks
+cargo bench --features bench-md4c   # include md4c (requires: brew install md4c)
+pnpm bench                          # run + regenerate SVG report
+```
+
 ## Development
 
 This project uses [pnpm](https://pnpm.io/) for package management.

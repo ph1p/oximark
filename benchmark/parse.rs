@@ -1,6 +1,77 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use ironmark::{ParseOptions, parse};
 
+// --- md4c FFI (only when the "bench-md4c" feature is enabled) ---
+
+#[cfg(feature = "bench-md4c")]
+mod md4c_ffi {
+    use std::ffi::c_void;
+
+    #[link(name = "md4c-html")]
+    unsafe extern "C" {
+        pub fn md_html(
+            input: *const u8,
+            input_size: u32,
+            process_output: unsafe extern "C" fn(*const u8, u32, *mut c_void),
+            userdata: *mut c_void,
+            parser_flags: u32,
+            renderer_flags: u32,
+        ) -> i32;
+    }
+
+    pub unsafe extern "C" fn output_cb(text: *const u8, size: u32, userdata: *mut c_void) {
+        // SAFETY: userdata is &mut String cast to *mut c_void
+        let buf = unsafe { &mut *(userdata as *mut String) };
+        let slice = unsafe { std::slice::from_raw_parts(text, size as usize) };
+        buf.push_str(&String::from_utf8_lossy(slice));
+    }
+}
+
+// md4c parser flag constants (from md4c.h)
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_PERMISSIVEURLAUTOLINKS: u32 = 0x0004;
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_PERMISSIVEEMAILAUTOLINKS: u32 = 0x0008;
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_TABLES: u32 = 0x0100;
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_STRIKETHROUGH: u32 = 0x0200;
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_TASKLISTS: u32 = 0x0800;
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_UNDERLINE: u32 = 0x4000;
+#[cfg(feature = "bench-md4c")]
+const MD_FLAG_HARD_SOFT_BREAKS: u32 = 0x8000;
+
+#[cfg(feature = "bench-md4c")]
+fn parse_md4c(input: &str) -> String {
+    use md4c_ffi::{md_html, output_cb};
+    // Match ironmark's default feature set as closely as md4c allows.
+    // md4c has no Highlight (==) equivalent — excluded from both sides.
+    const FLAGS: u32 = MD_FLAG_TABLES
+        | MD_FLAG_STRIKETHROUGH
+        | MD_FLAG_TASKLISTS
+        | MD_FLAG_PERMISSIVEURLAUTOLINKS
+        | MD_FLAG_PERMISSIVEEMAILAUTOLINKS
+        | MD_FLAG_HARD_SOFT_BREAKS
+        | MD_FLAG_UNDERLINE;
+    let mut output = String::with_capacity(input.len() * 2);
+    // SAFETY: md_html does not store the pointers beyond the call; output lives for the duration
+    unsafe {
+        md_html(
+            input.as_ptr(),
+            input.len() as u32,
+            output_cb,
+            &raw mut output as *mut std::ffi::c_void,
+            FLAGS,
+            0,
+        );
+    }
+    output
+}
+
+// --- Input generators ---
+
 fn load_spec_markdown() -> String {
     let json = include_str!("../tests/spec/spec-0.31.2.json");
     let specs: Vec<serde_json::Value> = serde_json::from_str(json).unwrap();
@@ -64,21 +135,113 @@ fn gen_code_blocks(n: usize) -> String {
         .collect()
 }
 
+fn gen_all_features_doc() -> &'static str {
+    include_str!("all_features.md")
+}
+
+fn gen_mixed_doc(lines: usize) -> String {
+    let mut s = String::new();
+    let mut line = 0;
+    while line < lines {
+        match line / 20 % 6 {
+            0 => {
+                s.push_str(&format!("# Section {}\n\n", line / 20));
+                line += 2;
+                for i in 0..4.min(lines - line) {
+                    s.push_str(&format!(
+                        "This is paragraph text with **bold**, *italic*, `code`, and [a link](http://example.com/{i}).\n"
+                    ));
+                    line += 1;
+                }
+                s.push('\n');
+                line += 1;
+            }
+            1 => {
+                for i in 0..6.min(lines - line) {
+                    s.push_str(&format!("- List item {i} with some text\n"));
+                    line += 1;
+                }
+                s.push('\n');
+                line += 1;
+            }
+            2 => {
+                s.push_str("```rust\n");
+                line += 1;
+                for i in 0..5.min(lines - line) {
+                    s.push_str(&format!("    let x_{i} = compute({i});\n"));
+                    line += 1;
+                }
+                s.push_str("```\n\n");
+                line += 2;
+            }
+            3 => {
+                for _ in 0..3.min(lines - line) {
+                    s.push_str("> Quoted text with *emphasis* and **strong**.\n");
+                    line += 1;
+                }
+                s.push('\n');
+                line += 1;
+            }
+            4 => {
+                for _ in 0..5.min(lines - line) {
+                    s.push_str(
+                        "Plain text without any special formatting or markup characters at all.\n",
+                    );
+                    line += 1;
+                }
+                s.push('\n');
+                line += 1;
+            }
+            5 => {
+                for i in 0..4.min(lines - line) {
+                    s.push_str(&format!("{}. Item with `code` and **bold**\n", i + 1));
+                    line += 1;
+                }
+                s.push('\n');
+                line += 1;
+            }
+            _ => unreachable!(),
+        }
+    }
+    s
+}
+
+fn gen_pathological_backticks(n: usize) -> String {
+    (1..=n).map(|i| "`".repeat(i) + " ").collect()
+}
+
+fn gen_pathological_emphasis(n: usize) -> String {
+    "*a ".repeat(n)
+}
+
+fn gen_many_ref_links(n: usize) -> String {
+    let mut s = String::from("[refdef]: http://example.com/very/long/url \"Title\"\n\n");
+    for _ in 0..n {
+        s.push_str("See [refdef] and [refdef] and [refdef].\n\n");
+    }
+    s
+}
+
 // --- Parser wrappers ---
 
 type ParserFn = fn(&str) -> String;
 
-const PARSERS: &[(&str, ParserFn)] = &[
-    ("ironmark", parse_ironmark),
-    ("pulldown_cmark", parse_pulldown_cmark),
-    ("comrak", parse_comrak),
-    ("markdown_rs", parse_markdown_rs),
-    ("markdown_it", parse_markdown_it),
-];
+fn parsers() -> Vec<(&'static str, ParserFn)> {
+    #[allow(unused_mut)]
+    let mut v: Vec<(&'static str, ParserFn)> = vec![
+        ("ironmark", parse_ironmark),
+        ("pulldown_cmark", parse_pulldown_cmark),
+        ("comrak", parse_comrak),
+        ("markdown_rs", parse_markdown_rs),
+        ("markdown_it", parse_markdown_it),
+    ];
+    #[cfg(feature = "bench-md4c")]
+    v.push(("md4c", parse_md4c));
+    v
+}
 
 fn parse_ironmark(input: &str) -> String {
-    let opts = ParseOptions::default();
-    parse(input, &opts)
+    parse(input, &ParseOptions::default())
 }
 
 fn parse_pulldown_cmark(input: &str) -> String {
@@ -106,33 +269,59 @@ fn parse_markdown_rs(input: &str) -> String {
 }
 
 fn parse_markdown_it(input: &str) -> String {
-    let parser = &mut markdown_it::MarkdownIt::new();
-    markdown_it::plugins::cmark::add(parser);
-    markdown_it::plugins::extra::add(parser);
-    let ast = parser.parse(input);
-    ast.render()
+    use std::sync::OnceLock;
+    static PARSER: OnceLock<markdown_it::MarkdownIt> = OnceLock::new();
+    let parser = PARSER.get_or_init(|| {
+        let mut p = markdown_it::MarkdownIt::new();
+        markdown_it::plugins::cmark::add(&mut p);
+        markdown_it::plugins::extra::add(&mut p);
+        p
+    });
+    parser.parse(input).render()
 }
+
+// --- Timing configuration ---
+//
+// Tuned per group so total wall time stays reasonable:
+//   - fast groups (ironmark ~µs range): 300ms warmup + 1s measurement, 50 samples
+//   - slow groups (markdown_rs/markdown_it can hit ms range): capped at 10 samples
+
+struct TimingConfig {
+    warmup_ms: u64,
+    measure_ms: u64,
+    sample_size: usize,
+}
+
+const NORMAL: TimingConfig = TimingConfig { warmup_ms: 300, measure_ms: 1000, sample_size: 50 };
+const SLOW: TimingConfig = TimingConfig { warmup_ms: 200, measure_ms: 1000, sample_size: 10 };
+const PATHOLOGICAL: TimingConfig = TimingConfig { warmup_ms: 100, measure_ms: 500, sample_size: 10 };
 
 // --- Benchmark helper ---
 
-fn bench_group(c: &mut Criterion, group_name: &str, input: &str) {
+fn bench_group_cfg(c: &mut Criterion, group_name: &str, input: &str, cfg: &TimingConfig) {
     let label = format!("{} bytes", input.len());
     let mut group = c.benchmark_group(group_name);
-    group.warm_up_time(std::time::Duration::from_millis(500));
-    group.measurement_time(std::time::Duration::from_secs(2));
-    for &(name, func) in PARSERS {
-        group.bench_with_input(BenchmarkId::new(name, &label), input, |b, input| {
+    group.warm_up_time(std::time::Duration::from_millis(cfg.warmup_ms));
+    group.measurement_time(std::time::Duration::from_millis(cfg.measure_ms));
+    group.sample_size(cfg.sample_size);
+    let parsers = parsers();
+    for (name, func) in &parsers {
+        group.bench_with_input(BenchmarkId::new(*name, &label), input, |b, input| {
             b.iter(|| func(black_box(input)))
         });
     }
     group.finish();
 }
 
+fn bench_group(c: &mut Criterion, group_name: &str, input: &str) {
+    bench_group_cfg(c, group_name, input, &NORMAL);
+}
+
 // --- Benchmarks ---
 
 fn bench_spec(c: &mut Criterion) {
     let input = load_spec_markdown();
-    bench_group(c, "commonmark_spec", &input);
+    bench_group_cfg(c, "commonmark_spec", &input, &SLOW);
 }
 
 fn bench_sizes(c: &mut Criterion) {
@@ -141,167 +330,173 @@ fn bench_sizes(c: &mut Criterion) {
         let input: String = base.chars().cycle().take(size).collect();
         bench_group(c, &format!("document_size_{size} bytes"), &input);
     }
-    // Large file benchmark — single size, fewer samples
     {
         let size = 1_000_000;
         let input: String = base.chars().cycle().take(size).collect();
-        let label = format!("{} bytes", input.len());
-        let mut group = c.benchmark_group(format!("document_size_{size} bytes"));
-        group.sample_size(10);
-        group.warm_up_time(std::time::Duration::from_millis(300));
-        group.measurement_time(std::time::Duration::from_secs(2));
-        for &(name, func) in PARSERS {
-            group.bench_with_input(BenchmarkId::new(name, &label), &*input, |b, input| {
-                b.iter(|| func(black_box(input)))
-            });
-        }
-        group.finish();
+        bench_group_cfg(c, &format!("document_size_{size} bytes"), &input, &SLOW);
     }
 }
 
 fn bench_block_types(c: &mut Criterion) {
-    let cases: Vec<(&str, String)> = vec![
-        ("headings", gen_heading_doc(200)),
-        ("nested_lists", gen_nested_list(50)),
-        ("table", gen_table(100, 10)),
-        ("code_blocks", gen_code_blocks(100)),
+    let cases: &[(&str, fn() -> String)] = &[
+        ("headings", || gen_heading_doc(200)),
+        ("nested_lists", || gen_nested_list(50)),
+        ("table", || gen_table(100, 10)),
+        ("code_blocks", || gen_code_blocks(100)),
     ];
-    for (name, input) in &cases {
-        bench_group(c, &format!("block_types/{name}"), input);
+    for (name, make) in cases {
+        bench_group(c, &format!("block_types/{name}"), &make());
     }
 }
 
 fn bench_inline(c: &mut Criterion) {
-    let input = gen_inline_heavy();
-    bench_group(c, "inline_heavy", &input);
-}
-
-fn gen_pathological_backticks(n: usize) -> String {
-    (1..=n).map(|i| "`".repeat(i) + " ").collect()
-}
-
-fn gen_pathological_emphasis(n: usize) -> String {
-    "*a ".repeat(n)
-}
-
-fn gen_many_ref_links(n: usize) -> String {
-    let mut s = String::from("[refdef]: http://example.com/very/long/url \"Title\"\n\n");
-    for _ in 0..n {
-        s.push_str("See [refdef] and [refdef] and [refdef].\n\n");
-    }
-    s
+    bench_group(c, "inline_heavy", &gen_inline_heavy());
 }
 
 fn bench_pathological(c: &mut Criterion) {
-    let cases: Vec<(&str, String)> = vec![
-        ("backticks_500", gen_pathological_backticks(500)),
-        ("emphasis_10k", gen_pathological_emphasis(10_000)),
-        ("table_1k_rows", gen_table(1_000, 10)),
-        ("ref_links_1k", gen_many_ref_links(1_000)),
+    let cases: &[(&str, fn() -> String)] = &[
+        ("backticks_500", || gen_pathological_backticks(500)),
+        ("emphasis_10k", || gen_pathological_emphasis(10_000)),
+        ("table_1k_rows", || gen_table(1_000, 10)),
+        ("ref_links_1k", || gen_many_ref_links(1_000)),
     ];
-    for (name, input) in &cases {
-        let label = format!("{} bytes", input.len());
-        let mut group = c.benchmark_group(format!("pathological/{name}"));
-        group.sample_size(10);
-        group.warm_up_time(std::time::Duration::from_millis(300));
-        group.measurement_time(std::time::Duration::from_secs(2));
-        for &(pname, func) in PARSERS {
-            group.bench_with_input(BenchmarkId::new(pname, &label), &**input, |b, input| {
-                b.iter(|| func(black_box(input)))
-            });
-        }
-        group.finish();
+    for (name, make) in cases {
+        bench_group_cfg(c, &format!("pathological/{name}"), &make(), &PATHOLOGICAL);
     }
-}
-
-/// Generate a realistic mixed-content document with the given number of lines.
-fn gen_mixed_doc(lines: usize) -> String {
-    let mut s = String::new();
-    let mut line = 0;
-    while line < lines {
-        let section = line / 20 % 6;
-        match section {
-            0 => {
-                // Paragraphs with inline formatting
-                s.push_str(&format!("# Section {}\n\n", line / 20));
-                line += 2;
-                for i in 0..4.min(lines - line) {
-                    s.push_str(&format!(
-                        "This is paragraph text with **bold**, *italic*, `code`, and [a link](http://example.com/{i}).\n"
-                    ));
-                    line += 1;
-                }
-                s.push('\n');
-                line += 1;
-            }
-            1 => {
-                // Bullet list
-                for i in 0..6.min(lines - line) {
-                    s.push_str(&format!("- List item {i} with some text\n"));
-                    line += 1;
-                }
-                s.push('\n');
-                line += 1;
-            }
-            2 => {
-                // Code block
-                s.push_str("```rust\n");
-                line += 1;
-                for i in 0..5.min(lines - line) {
-                    s.push_str(&format!("    let x_{i} = compute({i});\n"));
-                    line += 1;
-                }
-                s.push_str("```\n\n");
-                line += 2;
-            }
-            3 => {
-                // Blockquote
-                for _ in 0..3.min(lines - line) {
-                    s.push_str("> Quoted text with *emphasis* and **strong**.\n");
-                    line += 1;
-                }
-                s.push('\n');
-                line += 1;
-            }
-            4 => {
-                // Plain paragraphs (no inline markup)
-                for _ in 0..5.min(lines - line) {
-                    s.push_str(
-                        "Plain text without any special formatting or markup characters at all.\n",
-                    );
-                    line += 1;
-                }
-                s.push('\n');
-                line += 1;
-            }
-            _ => {
-                // Ordered list with inline
-                for i in 0..4.min(lines - line) {
-                    s.push_str(&format!("{}. Item with `code` and **bold**\n", i + 1));
-                    line += 1;
-                }
-                s.push('\n');
-                line += 1;
-            }
-        }
-    }
-    s
 }
 
 fn bench_large_lines(c: &mut Criterion) {
-    let num_lines = 10_000;
-    let input = gen_mixed_doc(num_lines);
-    let label = format!("{} lines / {} bytes", num_lines, input.len());
-    let mut group = c.benchmark_group(format!("large_lines/{num_lines}"));
-    group.sample_size(10);
-    group.warm_up_time(std::time::Duration::from_millis(300));
-    group.measurement_time(std::time::Duration::from_secs(2));
-    for &(name, func) in PARSERS {
-        group.bench_with_input(BenchmarkId::new(name, &label), &*input, |b, input| {
-            b.iter(|| func(black_box(input)))
+    let input = gen_mixed_doc(10_000);
+    bench_group_cfg(c, "large_lines/10000", &input, &SLOW);
+}
+
+fn bench_all_features(c: &mut Criterion) {
+    bench_group(c, "all_features", gen_all_features_doc());
+}
+
+// --- CSV export ---
+//
+// Reads median_ns from criterion's own estimates.json files — no re-measurement.
+// Writes to benchmark/history/YYYY-MM-DD.csv (overwrites same-day file).
+
+fn csv_date() -> String {
+    let secs = std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
         });
+    let days = secs / 86400;
+    let mut y = 1970u32;
+    let mut d = days as u32;
+    loop {
+        let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+        let days_in_year = if leap { 366 } else { 365 };
+        if d < days_in_year {
+            break;
+        }
+        d -= days_in_year;
+        y += 1;
     }
-    group.finish();
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let month_days: [u32; 12] =
+        [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut m = 0u32;
+    while m < 12 && d >= month_days[m as usize] {
+        d -= month_days[m as usize];
+        m += 1;
+    }
+    format!("{y:04}-{:02}-{:02}", m + 1, d + 1)
+}
+
+
+/// Walk criterion's output directory and collect all estimates.
+/// Returns (group_path, parser, input_bytes, median_ns).
+fn collect_criterion_results() -> Vec<(String, String, usize, f64)> {
+    let criterion_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/criterion");
+    let known_parsers = ["ironmark", "pulldown_cmark", "comrak", "markdown_rs", "markdown_it", "md4c"];
+    let mut rows = Vec::new();
+    collect_criterion_dir(&criterion_dir, &criterion_dir, &known_parsers, &mut rows);
+    rows
+}
+
+fn collect_criterion_dir(
+    base: &std::path::Path,
+    dir: &std::path::Path,
+    known_parsers: &[&str],
+    out: &mut Vec<(String, String, usize, f64)>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        let name = entry.file_name().into_string().unwrap_or_default();
+        if name == "report" {
+            continue;
+        }
+        let path = entry.path();
+        let estimates = path.join("new/estimates.json");
+        match std::fs::read_to_string(&estimates) {
+            Ok(json) => {
+                // Path relative to criterion dir: group/parser/label
+                let rel = path.strip_prefix(base).unwrap_or(&path);
+                let parts: Vec<&str> = rel.to_str().unwrap_or("").split('/').collect();
+                if let Some(parser_idx) = parts.iter().position(|p| known_parsers.contains(p)) {
+                    let group = parts[..parser_idx].join("/");
+                    let parser = parts[parser_idx].to_string();
+                    let label = parts[parser_idx + 1..].join("/");
+                    let input_bytes: usize =
+                        label.split_whitespace().next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&json) {
+                        if let Some(ns) = v["median"]["point_estimate"].as_f64() {
+                            out.push((group, parser, input_bytes, ns));
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                collect_criterion_dir(base, &path, known_parsers, out);
+            }
+        }
+    }
+}
+
+fn export_csv(c: &mut Criterion) {
+    // No measurement — just read what criterion already wrote.
+    let _ = c;
+
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    let history_dir = format!("{manifest}/benchmark/history");
+    std::fs::create_dir_all(&history_dir).expect("create benchmark/history");
+    let date = csv_date();
+    let dated_path = format!("{history_dir}/{date}.csv");
+
+    let rows = collect_criterion_results();
+
+    // Write all rows in one open — header + data, overwriting any same-day file.
+    {
+        use std::io::Write;
+        let mut f = std::fs::File::create(&dated_path)
+            .unwrap_or_else(|e| panic!("create {dated_path}: {e}"));
+        writeln!(f, "date,group,parser,input_bytes,median_ns").unwrap();
+        for (group, parser, input_bytes, median_ns) in &rows {
+            writeln!(f, "{date},{group},{parser},{input_bytes},{median_ns:.0}").unwrap();
+        }
+    }
+
+    if rows.is_empty() {
+        eprintln!("export_csv: no criterion results found in target/criterion/");
+    } else {
+        eprintln!("export_csv: wrote {} rows to history/{date}.csv", rows.len());
+    }
 }
 
 criterion_group!(
@@ -312,5 +507,7 @@ criterion_group!(
     bench_inline,
     bench_pathological,
     bench_large_lines,
+    bench_all_features,
+    export_csv,
 );
 criterion_main!(benches);
