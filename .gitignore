@@ -10,3 +10,4 @@
 /benchmark/results/bench.csv
 /benchmark/results/rust-markdown-bench-*.csv
 /benchmark/results/compare-bench-*.csv
+/vendor
