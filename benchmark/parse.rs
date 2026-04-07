@@ -1,6 +1,8 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use ironmark::{ParseOptions, parse};
 
+type BenchCase = (&'static str, fn() -> String);
+
 // --- md4c FFI (only when the "bench-md4c" feature is enabled) ---
 
 #[cfg(feature = "bench-md4c")]
@@ -350,7 +352,7 @@ fn bench_sizes(c: &mut Criterion) {
 }
 
 fn bench_block_types(c: &mut Criterion) {
-    let cases: &[(&str, fn() -> String)] = &[
+    let cases: &[BenchCase] = &[
         ("headings", || gen_heading_doc(200)),
         ("nested_lists", || gen_nested_list(50)),
         ("table", || gen_table(100, 10)),
@@ -366,7 +368,7 @@ fn bench_inline(c: &mut Criterion) {
 }
 
 fn bench_pathological(c: &mut Criterion) {
-    let cases: &[(&str, fn() -> String)] = &[
+    let cases: &[BenchCase] = &[
         ("backticks_500", || gen_pathological_backticks(500)),
         ("emphasis_10k", || gen_pathological_emphasis(10_000)),
         ("table_1k_rows", || gen_table(1_000, 10)),
@@ -405,7 +407,7 @@ fn csv_date() -> String {
     let mut y = 1970u32;
     let mut d = days as u32;
     loop {
-        let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+        let leap = (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400);
         let days_in_year = if leap { 366 } else { 365 };
         if d < days_in_year {
             break;
@@ -413,7 +415,7 @@ fn csv_date() -> String {
         d -= days_in_year;
         y += 1;
     }
-    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let leap = (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400);
     let month_days: [u32; 12] = [
         31,
         if leap { 29 } else { 28 },
@@ -488,10 +490,10 @@ fn collect_criterion_dir(
                         .next()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(0);
-                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&json) {
-                        if let Some(ns) = v["median"]["point_estimate"].as_f64() {
-                            out.push((group, parser, input_bytes, ns));
-                        }
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&json)
+                        && let Some(ns) = v["median"]["point_estimate"].as_f64()
+                    {
+                        out.push((group, parser, input_bytes, ns));
                     }
                 }
             }
