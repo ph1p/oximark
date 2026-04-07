@@ -42,8 +42,8 @@ pub enum Block {
 pub struct TableData {
     pub alignments: Vec<TableAlignment>,
     pub num_cols: usize,
-    pub header: Vec<CompactString>,   // len == num_cols
-    pub rows: Vec<CompactString>,     // flat row-major, len == num_rows * num_cols
+    pub header: Vec<CompactString>, // len == num_cols
+    pub rows: Vec<CompactString>,   // flat row-major, len == num_rows * num_cols
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -165,7 +165,11 @@ function readLatestHistoryCsv() {
     if (!groups.has(group)) groups.set(group, { bytes, results: {} });
     groups.get(group).results[parser] = { median_ns: parseFloat(median_ns) };
   }
-  return [...groups.entries()].map(([name, data]) => ({ name, bytes: data.bytes, results: data.results }));
+  return [...groups.entries()].map(([name, data]) => ({
+    name,
+    bytes: data.bytes,
+    results: data.results,
+  }));
 }
 
 const rustResults = readLatestHistoryCsv();

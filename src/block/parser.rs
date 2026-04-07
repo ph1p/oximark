@@ -334,7 +334,9 @@ impl<'a> BlockParser<'a> {
                                     fence_char,
                                     fence_len,
                                     fence_indent: indent,
-                                    info: CompactString::from(resolve_entities_and_escapes(info).as_ref()),
+                                    info: CompactString::from(
+                                        resolve_entities_and_escapes(info).as_ref(),
+                                    ),
                                 })),
                                 128,
                             ));
@@ -524,14 +526,17 @@ impl<'a> BlockParser<'a> {
                     return;
                 }
                 if let Some((fence_char, fence_len, info)) = parse_fence_start(rest) {
-                    self.open.push(OpenBlock::new(OpenBlockType::FencedCode(
-                        Box::new(FencedCodeData {
-                            fence_char,
-                            fence_len,
-                            fence_indent: indent,
-                            info: CompactString::from(resolve_entities_and_escapes(info).as_ref()),
-                        }),
-                    )));
+                    self.open
+                        .push(OpenBlock::new(OpenBlockType::FencedCode(Box::new(
+                            FencedCodeData {
+                                fence_char,
+                                fence_len,
+                                fence_indent: indent,
+                                info: CompactString::from(
+                                    resolve_entities_and_escapes(info).as_ref(),
+                                ),
+                            },
+                        ))));
                     return;
                 }
                 if let Some(end_condition) = parse_html_block_start(rest, false) {

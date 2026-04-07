@@ -283,4 +283,3 @@ pub(super) fn parse_link_title(bytes: &[u8], start: usize) -> Option<(String, us
     }
     None
 }
-

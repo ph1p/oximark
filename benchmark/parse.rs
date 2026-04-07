@@ -292,9 +292,21 @@ struct TimingConfig {
     sample_size: usize,
 }
 
-const NORMAL: TimingConfig = TimingConfig { warmup_ms: 300, measure_ms: 1000, sample_size: 50 };
-const SLOW: TimingConfig = TimingConfig { warmup_ms: 200, measure_ms: 1000, sample_size: 10 };
-const PATHOLOGICAL: TimingConfig = TimingConfig { warmup_ms: 100, measure_ms: 500, sample_size: 10 };
+const NORMAL: TimingConfig = TimingConfig {
+    warmup_ms: 300,
+    measure_ms: 1000,
+    sample_size: 50,
+};
+const SLOW: TimingConfig = TimingConfig {
+    warmup_ms: 200,
+    measure_ms: 1000,
+    sample_size: 10,
+};
+const PATHOLOGICAL: TimingConfig = TimingConfig {
+    warmup_ms: 100,
+    measure_ms: 500,
+    sample_size: 10,
+};
 
 // --- Benchmark helper ---
 
@@ -402,8 +414,20 @@ fn csv_date() -> String {
         y += 1;
     }
     let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-    let month_days: [u32; 12] =
-        [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let month_days: [u32; 12] = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     let mut m = 0u32;
     while m < 12 && d >= month_days[m as usize] {
         d -= month_days[m as usize];
@@ -412,13 +436,19 @@ fn csv_date() -> String {
     format!("{y:04}-{:02}-{:02}", m + 1, d + 1)
 }
 
-
 /// Walk criterion's output directory and collect all estimates.
 /// Returns (group_path, parser, input_bytes, median_ns).
 fn collect_criterion_results() -> Vec<(String, String, usize, f64)> {
     let criterion_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/criterion");
-    let known_parsers = ["ironmark", "pulldown_cmark", "comrak", "markdown_rs", "markdown_it", "md4c"];
+    let known_parsers = [
+        "ironmark",
+        "pulldown_cmark",
+        "comrak",
+        "markdown_rs",
+        "markdown_it",
+        "md4c",
+    ];
     let mut rows = Vec::new();
     collect_criterion_dir(&criterion_dir, &criterion_dir, &known_parsers, &mut rows);
     rows
@@ -453,8 +483,11 @@ fn collect_criterion_dir(
                     let group = parts[..parser_idx].join("/");
                     let parser = parts[parser_idx].to_string();
                     let label = parts[parser_idx + 1..].join("/");
-                    let input_bytes: usize =
-                        label.split_whitespace().next().and_then(|s| s.parse().ok()).unwrap_or(0);
+                    let input_bytes: usize = label
+                        .split_whitespace()
+                        .next()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
                     if let Ok(v) = serde_json::from_str::<serde_json::Value>(&json) {
                         if let Some(ns) = v["median"]["point_estimate"].as_f64() {
                             out.push((group, parser, input_bytes, ns));
@@ -495,7 +528,10 @@ fn export_csv(c: &mut Criterion) {
     if rows.is_empty() {
         eprintln!("export_csv: no criterion results found in target/criterion/");
     } else {
-        eprintln!("export_csv: wrote {} rows to history/{date}.csv", rows.len());
+        eprintln!(
+            "export_csv: wrote {} rows to history/{date}.csv",
+            rows.len()
+        );
     }
 }
 

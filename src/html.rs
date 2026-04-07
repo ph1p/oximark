@@ -32,9 +32,7 @@ pub(crate) fn escape_html_into(out: &mut String, input: &str) {
 #[inline(always)]
 fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
     // Fast exit: if none of the four special chars exist, push the whole string.
-    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none()
-        && memchr::memchr(b'"', bytes).is_none()
-    {
+    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none() && memchr::memchr(b'"', bytes).is_none() {
         out.push_str(input);
         return;
     }
@@ -58,9 +56,7 @@ fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
 #[inline]
 fn escape_html_long(out: &mut String, input: &str, bytes: &[u8], len: usize) {
     // Fast exit: if none of the four special chars exist, push the whole string.
-    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none()
-        && memchr::memchr(b'"', bytes).is_none()
-    {
+    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none() && memchr::memchr(b'"', bytes).is_none() {
         out.push_str(input);
         return;
     }

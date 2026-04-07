@@ -203,7 +203,11 @@ fn render_one<'a>(
                 render_table_cell(out, cell.as_str(), "th", align, refs, opts, bufs);
             }
             out.push_str("</tr>\n</thead>\n");
-            let num_rows = if num_cols > 0 { td.rows.len() / num_cols } else { 0 };
+            let num_rows = if num_cols > 0 {
+                td.rows.len() / num_cols
+            } else {
+                0
+            };
             if num_rows > 0 {
                 out.push_str("<tbody>\n");
                 if all_none {
@@ -211,7 +215,13 @@ fn render_one<'a>(
                         out.push_str("<tr>\n");
                         for c in 0..num_cols {
                             out.push_str("<td>");
-                            parse_inline_pass(out, td.rows[r * num_cols + c].as_str(), refs, opts, bufs);
+                            parse_inline_pass(
+                                out,
+                                td.rows[r * num_cols + c].as_str(),
+                                refs,
+                                opts,
+                                bufs,
+                            );
                             out.push_str("</td>\n");
                         }
                         out.push_str("</tr>\n");
@@ -221,7 +231,15 @@ fn render_one<'a>(
                         out.push_str("<tr>\n");
                         for c in 0..num_cols {
                             let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
-                            render_table_cell(out, td.rows[r * num_cols + c].as_str(), "td", align, refs, opts, bufs);
+                            render_table_cell(
+                                out,
+                                td.rows[r * num_cols + c].as_str(),
+                                "td",
+                                align,
+                                refs,
+                                opts,
+                                bufs,
+                            );
                         }
                         out.push_str("</tr>\n");
                     }
