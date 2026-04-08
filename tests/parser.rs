@@ -612,3 +612,447 @@ fn task_list_loose() {
         "<ul>\n<li><input type=\"checkbox\" disabled=\"\" /> \n<p>item one</p>\n</li>\n<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> \n<p>item two</p>\n</li>\n</ul>\n",
     );
 }
+
+// ── permissiveAtxHeaders ────────────────────────────────────────────
+
+#[test]
+fn permissive_atx_headers_enabled() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        permissive_atx_headers: true,
+        ..Default::default()
+    };
+    assert_eq!(parse("#Hello", &opts), "<h1>Hello</h1>\n");
+    assert_eq!(parse("##World", &opts), "<h2>World</h2>\n");
+    assert_eq!(parse("######Level6", &opts), "<h6>Level6</h6>\n");
+}
+
+#[test]
+fn permissive_atx_headers_disabled_by_default() {
+    // Without permissive mode, `#heading` (no space) stays as paragraph text
+    let opts = ParseOptions {
+        hard_breaks: false,
+        ..Default::default()
+    };
+    assert_eq!(parse("#nospace", &opts), "<p>#nospace</p>\n");
+}
+
+#[test]
+fn permissive_atx_with_normal_headings_still_works() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        permissive_atx_headers: true,
+        ..Default::default()
+    };
+    // Normal headings with space still work
+    assert_eq!(parse("# Normal", &opts), "<h1>Normal</h1>\n");
+    // No-space also works
+    assert_eq!(parse("#NoSpace", &opts), "<h1>NoSpace</h1>\n");
+}
+
+// ── noIndentedCodeBlocks ────────────────────────────────────────────
+
+#[test]
+fn indented_code_block_enabled_by_default() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("    code here", &opts),
+        "<pre><code>code here\n</code></pre>\n"
+    );
+}
+
+#[test]
+fn no_indented_code_blocks_treats_as_paragraph() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_indented_code_blocks: false,
+        ..Default::default()
+    };
+    assert_eq!(parse("    not code", &opts), "<p>not code</p>\n");
+}
+
+#[test]
+fn no_indented_code_blocks_fenced_still_works() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_indented_code_blocks: false,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("```\nfenced\n```", &opts),
+        "<pre><code>fenced\n</code></pre>\n"
+    );
+}
+
+// ── noHtmlBlocks / noHtmlSpans ──────────────────────────────────────
+
+#[test]
+fn no_html_blocks_prevents_html_block_constructs() {
+    // With no_html_blocks, a lone HTML tag on its own line is treated as a paragraph,
+    // not an HTML block. The inline HTML scanner in the paragraph still passes it through
+    // unless no_html_spans is also set.
+    let opts = ParseOptions {
+        hard_breaks: false,
+        no_html_blocks: true,
+        ..Default::default()
+    };
+    // A real HTML block (<script> on its own line) would normally be an HTML block;
+    // with no_html_blocks it's rendered as a paragraph with inline HTML still passing through.
+    // To fully suppress, use no_html_spans or disable_raw_html.
+    let html = parse("<em>text</em>", &opts);
+    // Not an HTML block anymore — it's a paragraph, but inline HTML still passes through
+    assert!(
+        html.starts_with("<p>"),
+        "should be a paragraph, not bare HTML block"
+    );
+}
+
+#[test]
+fn no_html_blocks_and_no_html_spans_together() {
+    // Both together fully suppress HTML at block and inline level
+    let opts = ParseOptions {
+        hard_breaks: false,
+        no_html_blocks: true,
+        no_html_spans: true,
+        ..Default::default()
+    };
+    let html = parse("<div>hello</div>", &opts);
+    assert!(!html.contains("<div>"), "HTML should be fully escaped");
+    assert!(html.contains("&lt;div&gt;"), "should be HTML-escaped");
+}
+
+#[test]
+fn no_html_spans_escapes_inline_html() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        no_html_spans: true,
+        ..Default::default()
+    };
+    let html = parse("text <strong>bold</strong> end", &opts);
+    assert!(!html.contains("<strong>"), "inline HTML should be escaped");
+    assert!(html.contains("&lt;strong&gt;"), "should be HTML-escaped");
+}
+
+#[test]
+fn no_html_blocks_does_not_affect_inline_html() {
+    // no_html_blocks alone: inline HTML within paragraphs still passes through
+    let opts = ParseOptions {
+        hard_breaks: false,
+        no_html_blocks: true,
+        no_html_spans: false,
+        ..Default::default()
+    };
+    // Inline HTML within normal paragraph text should still render
+    let html = parse("text <em>word</em> end", &opts);
+    assert!(
+        html.contains("<em>word</em>"),
+        "inline HTML should still pass through"
+    );
+}
+
+// ── tagFilter ───────────────────────────────────────────────────────
+
+#[test]
+fn tag_filter_blocks_dangerous_tags() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        tag_filter: true,
+        ..Default::default()
+    };
+    for tag in &[
+        "script",
+        "iframe",
+        "style",
+        "textarea",
+        "title",
+        "xmp",
+        "noembed",
+        "noframes",
+        "plaintext",
+    ] {
+        let md = format!("<{tag}>content</{tag}>");
+        let html = parse(&md, &opts);
+        assert!(
+            !html.contains(&format!("<{tag}>")),
+            "tag <{tag}> should be filtered"
+        );
+        assert!(
+            html.contains(&format!("&lt;{tag}&gt;")),
+            "tag <{tag}> should be escaped"
+        );
+    }
+}
+
+#[test]
+fn tag_filter_allows_safe_tags() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        tag_filter: true,
+        ..Default::default()
+    };
+    let html = parse("text <em>word</em> end", &opts);
+    assert!(
+        html.contains("<em>word</em>"),
+        "safe inline tags should pass through"
+    );
+}
+
+#[test]
+fn tag_filter_case_insensitive() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        tag_filter: true,
+        ..Default::default()
+    };
+    let html = parse("<SCRIPT>x</SCRIPT>", &opts);
+    assert!(
+        !html.contains("<SCRIPT>"),
+        "tag filter should be case-insensitive"
+    );
+}
+
+// ── collapseWhitespace ──────────────────────────────────────────────
+
+#[test]
+fn collapse_whitespace_reduces_spaces() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        collapse_whitespace: true,
+        ..Default::default()
+    };
+    // Multiple spaces collapsed to one
+    assert_eq!(parse("a    b", &opts), "<p>a b</p>\n");
+}
+
+#[test]
+fn collapse_whitespace_tabs_too() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        collapse_whitespace: true,
+        ..Default::default()
+    };
+    assert_eq!(parse("a\t\tb", &opts), "<p>a b</p>\n");
+}
+
+#[test]
+fn collapse_whitespace_does_not_affect_code_spans() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        collapse_whitespace: true,
+        ..Default::default()
+    };
+    // Content inside `` `...` `` must not be collapsed
+    assert_eq!(parse("`a    b`", &opts), "<p><code>a    b</code></p>\n");
+}
+
+// ── Heading IDs ─────────────────────────────────────────────────────
+
+#[test]
+fn heading_id_simple() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_heading_ids: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("# Hello World", &opts),
+        "<h1 id=\"hello-world\">Hello World</h1>\n"
+    );
+}
+
+#[test]
+fn heading_id_strips_markdown() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_heading_ids: true,
+        ..Default::default()
+    };
+    // Bold inside heading → slug is plain text
+    assert_eq!(
+        parse("## **Bold** Text", &opts),
+        "<h2 id=\"bold-text\"><strong>Bold</strong> Text</h2>\n"
+    );
+}
+
+#[test]
+fn heading_id_special_chars() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_heading_ids: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("# Hello, World!", &opts),
+        "<h1 id=\"hello-world\">Hello, World!</h1>\n"
+    );
+}
+
+#[test]
+fn heading_anchor_link() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_heading_ids: true,
+        enable_heading_anchors: true,
+        ..Default::default()
+    };
+    let html = parse("# Title", &opts);
+    assert!(html.contains("id=\"title\""));
+    assert!(html.contains("<a class=\"anchor\" href=\"#title\">"));
+}
+
+#[test]
+fn heading_ids_disabled_by_default() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        ..Default::default()
+    };
+    let html = parse("# Hello", &opts);
+    assert!(
+        !html.contains("id="),
+        "heading IDs should be off by default"
+    );
+}
+
+// ── wikiLinks ───────────────────────────────────────────────────────
+
+#[test]
+fn wiki_link_basic() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_wiki_links: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("[[Hello World]]", &opts),
+        "<p><a href=\"hello_world\">Hello World</a></p>\n"
+    );
+}
+
+#[test]
+fn wiki_link_simple_slug() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_wiki_links: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("[[page]]", &opts),
+        "<p><a href=\"page\">page</a></p>\n"
+    );
+}
+
+#[test]
+fn wiki_link_disabled_by_default() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        ..Default::default()
+    };
+    let html = parse("[[wiki link]]", &opts);
+    // Falls through as normal bracket text
+    assert!(
+        !html.contains("<a href="),
+        "wiki links should be off by default"
+    );
+}
+
+#[test]
+fn wiki_link_no_newline_inside() {
+    // Multi-line wiki links are not supported (security / no multi-line)
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_wiki_links: true,
+        ..Default::default()
+    };
+    // The [[ spans a newline → should NOT become a wiki link
+    let html = parse("[[line\none]]", &opts);
+    assert!(!html.contains("<a href="), "no multi-line wiki links");
+}
+
+#[test]
+fn wiki_link_html_escaped_text() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_wiki_links: true,
+        ..Default::default()
+    };
+    let html = parse("[[<xss>]]", &opts);
+    assert!(
+        !html.contains("<xss>"),
+        "wiki link text must be HTML-escaped"
+    );
+}
+
+// ── latexMath ────────────────────────────────────────────────────────
+
+#[test]
+fn math_inline_basic() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_latex_math: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("$x + y$", &opts),
+        "<p><span class=\"math-inline\">x + y</span></p>\n"
+    );
+}
+
+#[test]
+fn math_display_basic() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_latex_math: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        parse("$$E = mc^2$$", &opts),
+        "<p><span class=\"math-display\">E = mc^2</span></p>\n"
+    );
+}
+
+#[test]
+fn math_content_html_escaped() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_latex_math: true,
+        ..Default::default()
+    };
+    // < and > inside math must be escaped (security)
+    let html = parse("$a < b$", &opts);
+    assert!(html.contains("&lt;"), "math content must be HTML-escaped");
+    assert!(
+        !html.contains("<b>"),
+        "math content must not contain raw HTML"
+    );
+}
+
+#[test]
+fn math_disabled_by_default() {
+    let opts = ParseOptions {
+        hard_breaks: false,
+        ..Default::default()
+    };
+    let html = parse("$x + y$", &opts);
+    // Dollar signs are literal
+    assert!(html.contains("$x + y$"), "math should be off by default");
+    assert!(!html.contains("math-inline"), "no math spans when disabled");
+}
+
+#[test]
+fn math_inline_no_newline() {
+    // Inline math must not span lines
+    let opts = ParseOptions {
+        hard_breaks: false,
+        enable_latex_math: true,
+        ..Default::default()
+    };
+    let html = parse("$a\nb$", &opts);
+    // No math-inline span — should fall back to literal $
+    assert!(
+        !html.contains("math-inline"),
+        "inline math should not span newlines"
+    );
+}
