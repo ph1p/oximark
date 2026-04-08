@@ -1,6 +1,6 @@
 use super::*;
 use crate::ParseOptions;
-use crate::html::is_dangerous_url;
+use crate::html::{collapse_and_escape_into, gfm_tag_is_filtered, is_dangerous_url};
 
 static EM_CLOSE: [&str; 6] = ["</em>", "</em>", "</strong>", "</del>", "</mark>", "</u>"];
 static EM_OPEN: [&str; 6] = ["<em>", "<em>", "<strong>", "<del>", "<mark>", "<u>"];
@@ -14,19 +14,34 @@ impl<'a> InlineScanner<'a> {
         while i < self.items.len() {
             match &self.items[i] {
                 InlineItem::TextRange(start, end) => {
-                    escape_html_into(out, &self.input[*start..*end]);
+                    let s = &self.input[*start..*end];
+                    if opts.collapse_whitespace {
+                        collapse_and_escape_into(out, s);
+                    } else {
+                        escape_html_into(out, s);
+                    }
                 }
-                InlineItem::TextOwned(t) => out.push_str(t),
+                InlineItem::TextOwned(t) => {
+                    if opts.collapse_whitespace {
+                        collapse_and_escape_into(out, t);
+                    } else {
+                        out.push_str(t);
+                    }
+                }
                 InlineItem::TextStatic(t) => out.push_str(t),
                 InlineItem::TextInline { buf, len } => {
                     // SAFETY: `buf` is constructed from UTF-8 bytes and `len` tracks initialized prefix length.
                     out.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) });
                 }
                 InlineItem::RawHtml(start, end) => {
-                    if opts.disable_raw_html {
-                        escape_html_into(out, &self.input[*start..*end]);
+                    let html = &self.input[*start..*end];
+                    let escape_it = opts.disable_raw_html
+                        || opts.no_html_spans
+                        || (opts.tag_filter && gfm_tag_is_filtered(html));
+                    if escape_it {
+                        escape_html_into(out, html);
                     } else {
-                        out.push_str(&self.input[*start..*end]);
+                        out.push_str(html);
                     }
                 }
                 InlineItem::Autolink(start, end, is_email) => {
@@ -153,6 +168,35 @@ impl<'a> InlineScanner<'a> {
                         tag_len -= 1;
                         out.push_str("</a>");
                     }
+                }
+                InlineItem::WikiLink(start, end) => {
+                    let text = &self.input[*start..*end];
+                    out.push_str("<a href=\"");
+                    // GitHub-wiki style slug: spaces → underscores, lowercase, percent-encode rest
+                    let mut slug = String::with_capacity(text.len());
+                    for c in text.chars() {
+                        if c == ' ' {
+                            slug.push('_');
+                        } else {
+                            for lc in c.to_lowercase() {
+                                slug.push(lc);
+                            }
+                        }
+                    }
+                    crate::html::encode_url_escaped_into(out, &slug);
+                    out.push_str("\">");
+                    escape_html_into(out, text);
+                    out.push_str("</a>");
+                }
+                InlineItem::MathInline(start, end) => {
+                    out.push_str("<span class=\"math-inline\">");
+                    escape_html_into(out, &self.input[*start..*end]);
+                    out.push_str("</span>");
+                }
+                InlineItem::MathDisplay(start, end) => {
+                    out.push_str("<span class=\"math-display\">");
+                    escape_html_into(out, &self.input[*start..*end]);
+                    out.push_str("</span>");
                 }
             }
             i += 1;

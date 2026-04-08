@@ -42,17 +42,28 @@
 //!
 //! ## Extensions
 //!
-//! All extensions are enabled by default via [`ParseOptions`]:
+//! Extensions enabled by default via [`ParseOptions`]:
 //!
-//! | Syntax | HTML | Option |
+//! | Syntax | HTML output | Option |
 //! |---|---|---|
-//! | `~~text~~` | `<del>` | `enable_strikethrough` |
-//! | `==text==` | `<mark>` | `enable_highlight` |
-//! | `++text++` | `<u>` | `enable_underline` |
-//! | `\| table \|` | `<table>` | `enable_tables` |
-//! | `- [x] task` | checkbox | `enable_task_lists` |
-//! | bare URLs | `<a>` | `enable_autolink` |
-//! | newlines | `<br />` | `hard_breaks` |
+//! | `~~text~~` | `<del>` | [`enable_strikethrough`](ParseOptions::enable_strikethrough) |
+//! | `==text==` | `<mark>` | [`enable_highlight`](ParseOptions::enable_highlight) |
+//! | `++text++` | `<u>` | [`enable_underline`](ParseOptions::enable_underline) |
+//! | `\| table \|` | `<table>` | [`enable_tables`](ParseOptions::enable_tables) |
+//! | `- [x] task` | `<input type="checkbox">` | [`enable_task_lists`](ParseOptions::enable_task_lists) |
+//! | bare URLs / emails | `<a>` | [`enable_autolink`](ParseOptions::enable_autolink) |
+//! | newlines | `<br />` | [`hard_breaks`](ParseOptions::hard_breaks) |
+//!
+//! Extensions disabled by default (opt-in):
+//!
+//! | Syntax | HTML output | Option |
+//! |---|---|---|
+//! | `[[wiki]]` | `<a href="wiki">` | [`enable_wiki_links`](ParseOptions::enable_wiki_links) |
+//! | `$math$` | `<span class="math-inline">` | [`enable_latex_math`](ParseOptions::enable_latex_math) |
+//! | `$$math$$` | `<span class="math-display">` | [`enable_latex_math`](ParseOptions::enable_latex_math) |
+//! | `# heading` with `id=` | `<h1 id="heading">` | [`enable_heading_ids`](ParseOptions::enable_heading_ids) |
+//! | `# heading` with anchor | `<h1>… <a class="anchor">` | [`enable_heading_anchors`](ParseOptions::enable_heading_anchors) |
+//! | `#Heading` (no space) | `<h1>` | [`permissive_atx_headers`](ParseOptions::permissive_atx_headers) |
 
 pub mod ast;
 mod block;
@@ -83,7 +94,19 @@ pub(crate) fn utf8_char_len(first: u8) -> usize {
     }
 }
 
-/// Options for customizing Markdown parsing behavior.
+/// Options for customizing Markdown parsing and rendering behavior.
+///
+/// Construct with [`Default::default()`] and override only the fields you need:
+///
+/// ```
+/// use ironmark::{parse, ParseOptions};
+///
+/// let html = parse("~~strike~~ ==highlight==", &ParseOptions {
+///     enable_strikethrough: true,
+///     enable_highlight: true,
+///     ..Default::default()
+/// });
+/// ```
 pub struct ParseOptions {
     /// When `true`, every newline inside a paragraph becomes a hard line break (`<br />`),
     /// similar to GitHub Flavored Markdown. Default: `true`.
@@ -113,6 +136,46 @@ pub struct ParseOptions {
     /// Maximum input size in bytes. Inputs exceeding this limit are truncated.
     /// `0` means no limit. Default: `0`.
     pub max_input_size: usize,
+
+    // ── Extension options (all default to `false`) ──────────────────────────
+    /// Auto-generate `id=` attributes on headings from their text content (slugified).
+    /// Default: `false`.
+    pub enable_heading_ids: bool,
+    /// Render an `<a class="anchor">` link inside each heading (implies slug generation).
+    /// Default: `false`.
+    pub enable_heading_anchors: bool,
+    /// When `true` (the default), a block indented by 4 or more spaces is a code block.
+    /// Set to `false` to disable indented code blocks and treat them as paragraphs instead.
+    /// Default: `true`.
+    pub enable_indented_code_blocks: bool,
+    /// When `true`, HTML block constructs are disabled: their source is escaped as text.
+    /// More granular than `disable_raw_html` (which also affects inline HTML).
+    /// Default: `false`.
+    pub no_html_blocks: bool,
+    /// When `true`, inline HTML spans are disabled: their source is escaped as text.
+    /// More granular than `disable_raw_html` (which also affects HTML blocks).
+    /// Default: `false`.
+    pub no_html_spans: bool,
+    /// Enable the GFM tag filter: a fixed set of dangerous HTML tags
+    /// (`title`, `textarea`, `style`, `xmp`, `iframe`, `noembed`, `noframes`,
+    /// `script`, `plaintext`) is escaped even when HTML is otherwise allowed.
+    /// Default: `false`.
+    pub tag_filter: bool,
+    /// Collapse runs of spaces/tabs in text nodes to a single space.
+    /// Does not affect code spans or hard/soft line breaks.
+    /// Default: `false`.
+    pub collapse_whitespace: bool,
+    /// Allow ATX headings without a space after `#` (e.g. `#Heading`).
+    /// Default: `false`.
+    pub permissive_atx_headers: bool,
+    /// Enable `[[wiki link]]` syntax → `<a href="wiki-link">wiki link</a>`.
+    /// Default: `false`.
+    pub enable_wiki_links: bool,
+    /// Enable `$inline$` and `$$display$$` math syntax.
+    /// Content is HTML-escaped and wrapped in `<span class="math-inline">` /
+    /// `<span class="math-display">` for client-side rendering.
+    /// Default: `false`.
+    pub enable_latex_math: bool,
 }
 
 impl Default for ParseOptions {
@@ -128,6 +191,16 @@ impl Default for ParseOptions {
             disable_raw_html: false,
             max_nesting_depth: 128,
             max_input_size: 0,
+            enable_heading_ids: false,
+            enable_heading_anchors: false,
+            enable_indented_code_blocks: true,
+            no_html_blocks: false,
+            no_html_spans: false,
+            tag_filter: false,
+            collapse_whitespace: false,
+            permissive_atx_headers: false,
+            enable_wiki_links: false,
+            enable_latex_math: false,
         }
     }
 }

@@ -22,6 +22,16 @@ function optionArgs(markdown, options) {
     options?.enableAutolink ?? undefined,
     options?.enableTaskLists ?? undefined,
     options?.disableRawHtml ?? undefined,
+    options?.enableHeadingIds ?? undefined,
+    options?.enableHeadingAnchors ?? undefined,
+    options?.enableIndentedCodeBlocks ?? undefined,
+    options?.noHtmlBlocks ?? undefined,
+    options?.noHtmlSpans ?? undefined,
+    options?.tagFilter ?? undefined,
+    options?.collapseWhitespace ?? undefined,
+    options?.permissiveAtxHeaders ?? undefined,
+    options?.enableWikiLinks ?? undefined,
+    options?.enableLatexMath ?? undefined,
   ];
 }
 

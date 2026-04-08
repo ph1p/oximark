@@ -15,17 +15,30 @@ export interface ParseOptions {
   enableAutolink?: boolean;
   /** Enable GitHub-style task lists (`- [ ] unchecked`, `- [x] checked`). Default: true. */
   enableTaskLists?: boolean;
-  /** When true, raw HTML is escaped instead of passed through (XSS prevention). Default: false. */
+  /** When true, raw HTML blocks and inline HTML are both escaped (XSS prevention). Default: false. */
   disableRawHtml?: boolean;
+  /** Auto-generate `id=` attributes on headings from their slugified text. Default: false. */
+  enableHeadingIds?: boolean;
+  /** Render an `<a class="anchor">` inside each heading (implies heading IDs). Default: false. */
+  enableHeadingAnchors?: boolean;
+  /** When false, 4-space-indented code blocks are disabled (treated as paragraphs). Default: true. */
+  enableIndentedCodeBlocks?: boolean;
+  /** Disable HTML block constructs (escape them as text). Default: false. */
+  noHtmlBlocks?: boolean;
+  /** Disable inline HTML spans (escape them as text). Default: false. */
+  noHtmlSpans?: boolean;
+  /** Enable GFM tag filter: escape dangerous tags like `<script>`, `<iframe>`, etc. Default: false. */
+  tagFilter?: boolean;
+  /** Collapse runs of spaces/tabs in text nodes to a single space. Default: false. */
+  collapseWhitespace?: boolean;
+  /** Allow ATX headings without a space after `#` (e.g. `#Heading`). Default: false. */
+  permissiveAtxHeaders?: boolean;
+  /** Enable `[[wiki link]]` syntax → `<a href="...">`. Default: false. */
+  enableWikiLinks?: boolean;
+  /** Enable `$...$` and `$$...$$` math syntax with HTML-escaped content. Default: false. */
+  enableLatexMath?: boolean;
 }
 
-/**
- * Parse Markdown to HTML.
- *
- * @param markdown - Markdown source (string or binary).
- * @param options - Optional parsing options.
- * @returns HTML string.
- */
 /**
  * Initialize the WASM module.
  *

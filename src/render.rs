@@ -1,6 +1,6 @@
 use crate::ParseOptions;
 use crate::ast::{Block, ListKind, TableAlignment};
-use crate::html::escape_html_into;
+use crate::html::{encode_url_escaped_into, escape_html_into, gfm_tag_is_filtered};
 use crate::inline::{InlineBuffers, LinkRefMap, parse_inline_pass};
 
 #[inline(always)]
@@ -90,14 +90,32 @@ fn render_one<'a>(
         }
         Block::ThematicBreak => out.push_str("<hr />\n"),
         Block::Heading { level, raw } => {
-            static OPEN: [&str; 7] = ["", "<h1>", "<h2>", "<h3>", "<h4>", "<h5>", "<h6>"];
-            static CLOSE: [&str; 7] = [
-                "", "</h1>\n", "</h2>\n", "</h3>\n", "</h4>\n", "</h5>\n", "</h6>\n",
-            ];
+            static TAGS: [&str; 7] = ["", "h1", "h2", "h3", "h4", "h5", "h6"];
             let l = *level as usize;
-            out.push_str(OPEN[l]);
+            let tag = TAGS[l];
+            out.push('<');
+            out.push_str(tag);
+            let slug = if opts.enable_heading_ids || opts.enable_heading_anchors {
+                let s = heading_slug(raw);
+                if !s.is_empty() {
+                    out.push_str(" id=\"");
+                    escape_html_into(out, &s);
+                    out.push('"');
+                }
+                s
+            } else {
+                String::new()
+            };
+            out.push('>');
             parse_inline_pass(out, raw, refs, opts, bufs);
-            out.push_str(CLOSE[l]);
+            if opts.enable_heading_anchors && !slug.is_empty() {
+                out.push_str(" <a class=\"anchor\" href=\"#");
+                encode_url_escaped_into(out, &slug);
+                out.push_str("\">¶</a>");
+            }
+            out.push_str("</");
+            out.push_str(tag);
+            out.push_str(">\n");
         }
         Block::Paragraph { raw } => {
             out.push_str("<p>");
@@ -126,16 +144,16 @@ fn render_one<'a>(
             out.push_str("</code></pre>\n");
         }
         Block::HtmlBlock { literal } => {
-            if opts.disable_raw_html {
+            let escape_it = opts.disable_raw_html
+                || opts.no_html_blocks
+                || (opts.tag_filter && gfm_tag_is_filtered(literal));
+            if escape_it {
                 escape_html_into(out, literal);
-                if !literal.ends_with('\n') {
-                    out.push('\n');
-                }
             } else {
                 out.push_str(literal);
-                if !literal.ends_with('\n') {
-                    out.push('\n');
-                }
+            }
+            if !literal.ends_with('\n') {
+                out.push('\n');
             }
         }
         Block::BlockQuote { children } => {
@@ -522,4 +540,79 @@ fn render_table_cell(
     out.push_str(open);
     parse_inline_pass(out, content, refs, opts, bufs);
     out.push_str(close);
+}
+
+/// Generate a URL-safe slug from heading raw markdown text.
+/// Strips markdown syntax, lowercases, replaces spaces/hyphens/dots with `-`.
+fn heading_slug(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let len = bytes.len();
+    let mut slug = String::with_capacity(len);
+    let mut i = 0;
+    let mut prev_dash = true; // start true to avoid leading dash
+
+    while i < len {
+        let b = bytes[i];
+        match b {
+            b'*' | b'_' | b'~' | b'=' | b'+' | b'`' => {
+                i += 1;
+            }
+            b'<' => {
+                if let Some(close) = raw[i..].find('>') {
+                    i += close + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'\\' => {
+                i += 1;
+            }
+            b'[' | b']' | b'!' | b'(' | b')' => {
+                i += 1;
+            }
+            // Spaces, hyphens, dots → single dash separator
+            b' ' | b'\t' | b'-' | b'.' => {
+                if !prev_dash && !slug.is_empty() {
+                    slug.push('-');
+                    prev_dash = true;
+                }
+                i += 1;
+            }
+            // ASCII alphanumeric → lowercase
+            b if b.is_ascii_alphanumeric() => {
+                slug.push(b.to_ascii_lowercase() as char);
+                prev_dash = false;
+                i += 1;
+            }
+            // Multi-byte UTF-8
+            b if b >= 0x80 => {
+                let char_len = crate::utf8_char_len(b);
+                if let Some(c) = raw[i..].chars().next() {
+                    if c.is_alphanumeric() {
+                        for lc in c.to_lowercase() {
+                            slug.push(lc);
+                        }
+                        prev_dash = false;
+                    } else {
+                        // Non-alphanumeric Unicode → dash separator
+                        if !prev_dash && !slug.is_empty() {
+                            slug.push('-');
+                            prev_dash = true;
+                        }
+                    }
+                }
+                i += char_len;
+            }
+            // Other ASCII punctuation → skip
+            _ => {
+                i += 1;
+            }
+        }
+    }
+
+    // Trim trailing dash
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    slug
 }

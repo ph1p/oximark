@@ -33,7 +33,7 @@ pub(super) fn is_thematic_break(line: &str) -> bool {
 }
 
 #[inline]
-pub(super) fn parse_atx_heading(line: &str) -> Option<(u8, &str)> {
+pub(super) fn parse_atx_heading(line: &str, permissive: bool) -> Option<(u8, &str)> {
     let bytes = line.as_bytes();
     if bytes.is_empty() || bytes[0] != b'#' {
         return None;
@@ -48,7 +48,13 @@ pub(super) fn parse_atx_heading(line: &str) -> Option<(u8, &str)> {
         return None;
     }
     if i < bytes.len() && bytes[i] != b' ' && bytes[i] != b'\t' {
-        return None;
+        if !permissive {
+            return None;
+        }
+        // permissive: `#heading` is valid — content starts immediately after the hashes
+        let raw_content = line[i..].trim();
+        let content = strip_closing_hashes(raw_content);
+        return Some((level, content));
     }
     let content = if i >= bytes.len() {
         ""
@@ -387,17 +393,17 @@ mod tests {
 
     #[test]
     fn atx_heading_basic() {
-        assert_eq!(parse_atx_heading("# foo"), Some((1, "foo")));
-        assert_eq!(parse_atx_heading("## foo"), Some((2, "foo")));
-        assert_eq!(parse_atx_heading("###### foo"), Some((6, "foo")));
-        assert_eq!(parse_atx_heading("####### foo"), None);
+        assert_eq!(parse_atx_heading("# foo", false), Some((1, "foo")));
+        assert_eq!(parse_atx_heading("## foo", false), Some((2, "foo")));
+        assert_eq!(parse_atx_heading("###### foo", false), Some((6, "foo")));
+        assert_eq!(parse_atx_heading("####### foo", false), None);
     }
 
     #[test]
     fn atx_heading_closing() {
-        assert_eq!(parse_atx_heading("# foo ##"), Some((1, "foo")));
-        assert_eq!(parse_atx_heading("## foo ##"), Some((2, "foo")));
-        assert_eq!(parse_atx_heading("# foo #"), Some((1, "foo")));
+        assert_eq!(parse_atx_heading("# foo ##", false), Some((1, "foo")));
+        assert_eq!(parse_atx_heading("## foo ##", false), Some((2, "foo")));
+        assert_eq!(parse_atx_heading("# foo #", false), Some((1, "foo")));
     }
 
     #[test]

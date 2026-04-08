@@ -318,7 +318,9 @@ impl<'a> BlockParser<'a> {
                             parent.children.push(Block::ThematicBreak);
                             return;
                         }
-                        if let Some((level, content)) = parse_atx_heading(rest) {
+                        if let Some((level, content)) =
+                            parse_atx_heading(rest, self.permissive_atx_headers)
+                        {
                             self.close_top_block();
                             let parent = self.open.last_mut().unwrap();
                             parent.children.push(Block::Heading {
@@ -399,9 +401,9 @@ impl<'a> BlockParser<'a> {
                 let can_start_new = indent <= 3
                     && (rb == b'>'
                         || is_thematic_break(rest)
-                        || parse_atx_heading(rest).is_some()
+                        || parse_atx_heading(rest, self.permissive_atx_headers).is_some()
                         || parse_fence_start(rest).is_some()
-                        || parse_html_block_start(rest, false).is_some());
+                        || (!self.no_html_blocks && parse_html_block_start(rest, false).is_some()));
 
                 if !can_start_new {
                     let marker = if indent <= 3 {
@@ -516,7 +518,8 @@ impl<'a> BlockParser<'a> {
                     parent.children.push(Block::ThematicBreak);
                     return;
                 }
-                if let Some((level, content)) = parse_atx_heading(rest) {
+                if let Some((level, content)) = parse_atx_heading(rest, self.permissive_atx_headers)
+                {
                     line.advance_to_nonspace();
                     let parent = self.open.last_mut().unwrap();
                     parent.children.push(Block::Heading {
@@ -539,7 +542,9 @@ impl<'a> BlockParser<'a> {
                         ))));
                     return;
                 }
-                if let Some(end_condition) = parse_html_block_start(rest, false) {
+                if !self.no_html_blocks
+                    && let Some(end_condition) = parse_html_block_start(rest, false)
+                {
                     let mut block = OpenBlock::with_content_capacity(
                         OpenBlockType::HtmlBlock { end_condition },
                         128,
@@ -572,7 +577,7 @@ impl<'a> BlockParser<'a> {
                     }
                     continue;
                 }
-            } else {
+            } else if self.enable_indented_code_blocks {
                 let tip = self.open.last().unwrap();
                 if !matches!(tip.block_type, OpenBlockType::Paragraph) {
                     let _ = line.skip_indent(4);

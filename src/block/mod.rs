@@ -371,6 +371,9 @@ pub(crate) struct BlockParser<'a> {
     open_blockquotes: usize,
     list_indent_sum: usize,
     max_nesting_depth: usize,
+    enable_indented_code_blocks: bool,
+    permissive_atx_headers: bool,
+    no_html_blocks: bool,
 }
 
 impl<'a> BlockParser<'a> {
@@ -389,6 +392,9 @@ impl<'a> BlockParser<'a> {
             open_blockquotes: 0,
             list_indent_sum: 0,
             max_nesting_depth: options.max_nesting_depth,
+            enable_indented_code_blocks: options.enable_indented_code_blocks,
+            permissive_atx_headers: options.permissive_atx_headers,
+            no_html_blocks: options.no_html_blocks || options.disable_raw_html,
         }
     }
 

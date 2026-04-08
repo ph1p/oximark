@@ -179,6 +179,106 @@ pub(crate) fn encode_url_escaped_into(out: &mut String, url: &str) {
     }
 }
 
+/// Collapse runs of spaces/tabs in `input` to a single space, then HTML-escape the result,
+/// in one pass. Newlines are left untouched (they are handled as `SoftBreak`/`HardBreak`
+/// inline items before this function is ever called).
+#[inline]
+pub(crate) fn collapse_and_escape_into(out: &mut String, input: &str) {
+    let bytes = input.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    let mut last = 0; // start of the current verbatim-copy slice
+
+    while i < len {
+        let b = bytes[i];
+        if b == b' ' || b == b'\t' {
+            if last < i {
+                // SAFETY: last..i is a valid UTF-8 substring (we only advance on ASCII).
+                out.push_str(unsafe { input.get_unchecked(last..i) });
+            }
+            while i < len && (bytes[i] == b' ' || bytes[i] == b'\t') {
+                i += 1;
+            }
+            // Emit a single space (skip leading/trailing whitespace runs).
+            if !out.is_empty() && i < len {
+                out.push(' ');
+            }
+            last = i;
+        } else {
+            // SAFETY: b is a valid u8 index into HTML_ESCAPE.
+            let idx = unsafe { *HTML_ESCAPE.get_unchecked(b as usize) };
+            if idx != 0 {
+                if last < i {
+                    // SAFETY: last..i is valid UTF-8.
+                    out.push_str(unsafe { input.get_unchecked(last..i) });
+                }
+                out.push_str(HTML_ESCAPE_STRS[idx as usize]);
+                last = i + 1;
+            }
+            i += 1;
+        }
+    }
+    if last < len {
+        // SAFETY: last..len is valid UTF-8.
+        out.push_str(unsafe { input.get_unchecked(last..len) });
+    }
+}
+
+/// GFM tag filter: the 9 tags that GitHub escapes even when raw HTML is allowed.
+/// See: <https://github.github.com/gfm/#disallowed-raw-html-extension->
+static GFM_FILTERED_TAGS: [&[u8]; 9] = [
+    b"title",
+    b"textarea",
+    b"style",
+    b"xmp",
+    b"iframe",
+    b"noembed",
+    b"noframes",
+    b"script",
+    b"plaintext",
+];
+
+/// Returns `true` when `html` starts with a tag whose name is in the GFM filter list.
+/// Handles both opening (`<script`) and closing (`</script`) tags.
+/// Allocation-free: compares bytes directly.
+#[inline]
+pub(crate) fn gfm_tag_is_filtered(html: &str) -> bool {
+    let bytes = html.as_bytes();
+    if bytes.is_empty() || bytes[0] != b'<' {
+        return false;
+    }
+    let start = if bytes.len() > 1 && bytes[1] == b'/' {
+        2
+    } else {
+        1
+    };
+    // collect tag name bytes (ASCII alpha only)
+    let mut name_end = start;
+    while name_end < bytes.len() {
+        let b = bytes[name_end];
+        if b.is_ascii_alphabetic() || (name_end > start && b.is_ascii_alphanumeric()) {
+            name_end += 1;
+        } else {
+            break;
+        }
+    }
+    if name_end == start {
+        return false;
+    }
+    let name = &bytes[start..name_end];
+    for &tag in GFM_FILTERED_TAGS.iter() {
+        if name.len() == tag.len()
+            && name
+                .iter()
+                .zip(tag.iter())
+                .all(|(a, b)| a.to_ascii_lowercase() == *b)
+        {
+            return true;
+        }
+    }
+    false
+}
+
 /// Returns `true` if the URL uses a dangerous scheme (`javascript:`, `vbscript:`, `data:`).
 /// Data URIs with an image MIME type (`data:image/...`) are allowed.
 #[inline]
