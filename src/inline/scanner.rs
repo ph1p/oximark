@@ -17,9 +17,9 @@ impl<'a> InlineScanner<'a> {
                 return;
             }
             let b = bytes[self.pos];
-            if self.special[b as usize] == 0 {
+            if SPECIAL[b as usize] == 0 {
                 self.pos += 1;
-                while self.pos < len && self.special[bytes[self.pos] as usize] == 0 {
+                while self.pos < len && SPECIAL[bytes[self.pos] as usize] == 0 {
                     self.pos += 1;
                 }
                 continue;
@@ -103,6 +103,22 @@ impl<'a> InlineScanner<'a> {
                     }
                 }
                 b'[' => {
+                    // Wiki link: [[text]] — checked before normal bracket handling
+                    if self.opts.enable_wiki_links
+                        && self.pos + 1 < len
+                        && bytes[self.pos + 1] == b'['
+                    {
+                        let content_start = self.pos + 2;
+                        if let Some(close_off) = find_wiki_close(&bytes[content_start..]) {
+                            self.flush_text_range(text_start, self.pos);
+                            let content_end = content_start + close_off;
+                            self.items
+                                .push(InlineItem::WikiLink(content_start, content_end));
+                            self.pos = content_end + 2; // skip past ]]
+                            text_start = self.pos;
+                            continue;
+                        }
+                    }
                     self.flush_text_range(text_start, self.pos);
                     let idx = self.items.len();
                     self.items.push(InlineItem::BracketOpen { is_image: false });
@@ -173,12 +189,47 @@ impl<'a> InlineScanner<'a> {
                         self.pos += 1;
                     }
                 }
-                _ => {
-                    // SPECIAL_ESCAPE bytes (b'>' and b'"') reach here; they are
-                    // plain text from the scanner's perspective — HTML escaping
-                    // happens at render time via escape_html_into on TextRange.
-                    self.pos += 1;
+                b'$' => {
+                    if self.opts.enable_latex_math {
+                        self.flush_text_range(text_start, self.pos);
+                        if self.pos + 1 < len && bytes[self.pos + 1] == b'$' {
+                            // Display math: $$...$$
+                            let content_start = self.pos + 2;
+                            if let Some(close_off) =
+                                find_double_dollar_close(&bytes[content_start..])
+                            {
+                                let content_end = content_start + close_off;
+                                self.items
+                                    .push(InlineItem::MathDisplay(content_start, content_end));
+                                self.pos = content_end + 2; // skip $$
+                            } else {
+                                self.items.push(InlineItem::TextStatic("$$"));
+                                self.pos += 2;
+                            }
+                        } else {
+                            // Inline math: $...$
+                            let content_start = self.pos + 1;
+                            if let Some(close_off) =
+                                find_single_dollar_close(&bytes[content_start..])
+                            {
+                                let content_end = content_start + close_off;
+                                self.items
+                                    .push(InlineItem::MathInline(content_start, content_end));
+                                self.pos = content_end + 1; // skip closing $
+                            } else {
+                                self.items.push(InlineItem::TextStatic("$"));
+                                self.pos += 1;
+                            }
+                        }
+                        text_start = self.pos;
+                    } else {
+                        self.pos += 1;
+                    }
                 }
+                // SAFETY invariant: every byte with SPECIAL[b] != 0 has a match arm above
+                // (either a handler or an `else { self.pos += 1 }` fallthrough). If SPECIAL
+                // is extended with a new byte, a corresponding arm must be added here.
+                _ => unreachable!(),
             }
         }
         self.flush_text_range(text_start, self.pos);
@@ -200,8 +251,16 @@ impl<'a> InlineScanner<'a> {
         }
         let after_open = self.pos;
 
-        // Check backtick cache: if we already know no closer of this length exists, bail fast.
-        if open_count <= 63 && (self.backtick_no_match >> open_count) & 1 == 1 {
+        // If no backtick run of this length exists *after* the opener, bail immediately.
+        let last_pos = if open_count < 64 {
+            self.backtick_last[open_count]
+        } else {
+            self.backtick_last_long
+                .as_ref()
+                .and_then(|m| m.get(&(open_count as u32)).copied())
+                .unwrap_or(u32::MAX)
+        };
+        if last_pos < after_open as u32 {
             self.items.push(InlineItem::TextRange(start, after_open));
             self.pos = after_open;
             return;
@@ -214,10 +273,6 @@ impl<'a> InlineScanner<'a> {
                 self.pos = self.bytes.len();
             }
             if self.pos >= self.bytes.len() {
-                // No matching closer found — cache this length so future runs skip the scan.
-                if open_count <= 63 {
-                    self.backtick_no_match |= 1u64 << open_count;
-                }
                 self.items.push(InlineItem::TextRange(start, after_open));
                 self.pos = after_open;
                 return;
@@ -626,4 +681,45 @@ impl<'a> InlineScanner<'a> {
         self.pos = end;
         true
     }
+}
+
+/// Find the offset of the closing `]]` in `bytes`, searching from position 0.
+/// Returns the offset of the first `]` of `]]` (i.e. the content ends at that index).
+/// Returns `None` if no `]]` exists or if a newline is encountered first (security).
+#[inline]
+fn find_wiki_close(bytes: &[u8]) -> Option<usize> {
+    let mut offset = 0;
+    while let Some(i) = memchr::memchr2(b']', b'\n', &bytes[offset..]) {
+        let abs = offset + i;
+        match bytes[abs] {
+            b'\n' => return None,
+            _ if abs + 1 < bytes.len() && bytes[abs + 1] == b']' => return Some(abs),
+            _ => offset = abs + 1,
+        }
+    }
+    None
+}
+
+/// Find the closing `$$` starting from `bytes[0]`.
+/// Returns the offset of the first `$` of `$$`.
+/// Allows newlines (display math may be multi-line).
+#[inline]
+fn find_double_dollar_close(bytes: &[u8]) -> Option<usize> {
+    let mut offset = 0;
+    while let Some(i) = memchr::memchr(b'$', &bytes[offset..]) {
+        let abs = offset + i;
+        if abs + 1 < bytes.len() && bytes[abs + 1] == b'$' {
+            return Some(abs);
+        }
+        offset = abs + 1;
+    }
+    None
+}
+
+/// Find the closing `$` starting from `bytes[0]`.
+/// Returns the byte offset of the closing `$`.
+/// Disallows newlines (inline math must be single-line).
+#[inline]
+fn find_single_dollar_close(bytes: &[u8]) -> Option<usize> {
+    memchr::memchr2(b'$', b'\n', bytes).and_then(|i| (bytes[i] == b'$').then_some(i))
 }

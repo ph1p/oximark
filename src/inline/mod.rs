@@ -97,8 +97,28 @@ pub(crate) fn normalize_reference_label(label: &str) -> Cow<'_, str> {
 
 const SPECIAL_ANY: u8 = 1;
 const SPECIAL_COMPLEX: u8 = 2;
-/// Set on `>` and `"` — need HTML escaping in pre-scan but not a full inline parse.
-const SPECIAL_ESCAPE: u8 = 4;
+
+static SPECIAL: [u8; 256] = {
+    let mut t = [0u8; 256];
+    t[b'*' as usize] = SPECIAL_ANY;
+    t[b'_' as usize] = SPECIAL_ANY;
+    let both = SPECIAL_ANY | SPECIAL_COMPLEX;
+    t[b'\\' as usize] = both;
+    t[b'`' as usize] = both;
+    t[b'!' as usize] = both;
+    t[b'[' as usize] = both;
+    t[b']' as usize] = both;
+    t[b'<' as usize] = both;
+    t[b'&' as usize] = both;
+    t[b'\n' as usize] = both;
+    t[b'~' as usize] = both;
+    t[b'=' as usize] = both;
+    t[b'+' as usize] = both;
+    t[b':' as usize] = both;
+    t[b'@' as usize] = both;
+    t[b'$' as usize] = both;
+    t
+};
 
 #[inline]
 pub(crate) fn parse_inline_pass(
@@ -111,31 +131,124 @@ pub(crate) fn parse_inline_pass(
     let bytes = raw.as_bytes();
 
     // Single-pass classification for the common "mostly plain text" case.
-    // Uses the options-specific SPECIAL table so disabled features don't trigger a
-    // full inline parse. Bytes with SPECIAL_COMPLEX set need the full scanner;
-    // SPECIAL_ANY-only bytes (just `*` and `_`) only need emphasis handling.
-    let special = bufs.special_for(opts);
+    // This avoids constructing/scanning full inline state when no markdown syntax applies.
+    //
+    // We use a 256-byte lookup table where each byte encodes what it triggers:
+    //   bit 0 (SCAN_FULL)     — requires full inline scanner
+    //   bit 1 (SCAN_BACKTICK) — requires full scanner AND has backtick
+    //   bit 2 (SCAN_EMPH)     — emphasis (* or _)
+    //   bit 3 (SCAN_BREAK)    — line break (\ or \n)
+    //   bit 4 (SCAN_ESCAPE)   — HTML-escape needed (> or ")
+    const SCAN_FULL: u8 = 1;
+    const SCAN_IS_BACKTICK: u8 = 2; // set only for backtick; always paired with SCAN_FULL
+    const SCAN_EMPH: u8 = 4;
+    const SCAN_BREAK: u8 = 8;
+    const SCAN_ESCAPE: u8 = 16;
+
+    // Build the table incorporating enabled extensions. This executes once per
+    // parse_inline_pass call but touches only ~20 entries and lives on the stack.
+    let scan_table: [u8; 256] = {
+        let mut t = [0u8; 256];
+        t[b'*' as usize] = SCAN_EMPH;
+        t[b'_' as usize] = SCAN_EMPH;
+        t[b'\\' as usize] = SCAN_BREAK;
+        t[b'\n' as usize] = SCAN_BREAK;
+        t[b'>' as usize] = SCAN_ESCAPE;
+        t[b'"' as usize] = SCAN_ESCAPE;
+        t[b'`' as usize] = SCAN_FULL | SCAN_IS_BACKTICK;
+        t[b'!' as usize] = SCAN_FULL;
+        t[b'[' as usize] = SCAN_FULL;
+        t[b']' as usize] = SCAN_FULL;
+        t[b'<' as usize] = SCAN_FULL;
+        t[b'&' as usize] = SCAN_FULL;
+        if opts.enable_strikethrough {
+            t[b'~' as usize] = SCAN_FULL;
+        }
+        if opts.enable_highlight {
+            t[b'=' as usize] = SCAN_FULL;
+        }
+        if opts.enable_underline {
+            t[b'+' as usize] = SCAN_FULL;
+        }
+        if opts.enable_autolink {
+            t[b':' as usize] = SCAN_FULL;
+            t[b'@' as usize] = SCAN_FULL;
+        }
+        if opts.enable_latex_math {
+            t[b'$' as usize] = SCAN_FULL;
+        }
+        t
+    };
+
     let mut has_emphasis = false;
     let mut has_breaks = false;
     let mut needs_html_escape = false;
     let mut requires_full_inline = false;
-    for &b in bytes {
-        let s = special[b as usize];
-        if s == 0 {
+    let mut has_backtick = false;
+
+    // Fast scan: process 8 bytes at a time, ORing flags together. If no byte
+    // triggers SCAN_FULL|SCAN_BREAK|SCAN_EMPH|SCAN_ESCAPE in a chunk we skip it cheaply.
+    let mut i = 0;
+    // Process 8 bytes per iteration: OR all flags; if any FULL bit set, fall to per-byte.
+    const CHUNK: usize = 8;
+    while i + CHUNK <= bytes.len() {
+        let chunk = &bytes[i..i + CHUNK];
+        // OR flags for all 8 bytes
+        let flags = scan_table[chunk[0] as usize]
+            | scan_table[chunk[1] as usize]
+            | scan_table[chunk[2] as usize]
+            | scan_table[chunk[3] as usize]
+            | scan_table[chunk[4] as usize]
+            | scan_table[chunk[5] as usize]
+            | scan_table[chunk[6] as usize]
+            | scan_table[chunk[7] as usize];
+        if flags == 0 {
+            i += CHUNK;
             continue;
         }
-        if s == SPECIAL_ESCAPE {
-            needs_html_escape = true;
-        } else if s & SPECIAL_COMPLEX != 0 {
-            match b {
-                b'\\' | b'\n' => has_breaks = true,
-                _ => {
-                    requires_full_inline = true;
-                    break;
-                }
+        // Something interesting in this chunk — process per byte.
+        for &b in chunk {
+            let f = scan_table[b as usize];
+            if f & SCAN_FULL != 0 {
+                requires_full_inline = true;
+                has_backtick = f & SCAN_IS_BACKTICK != 0;
+                i = bytes.len(); // signal done
+                break;
             }
-        } else {
-            has_emphasis = true;
+            if f & SCAN_EMPH != 0 {
+                has_emphasis = true;
+            }
+            if f & SCAN_BREAK != 0 {
+                has_breaks = true;
+            }
+            if f & SCAN_ESCAPE != 0 {
+                needs_html_escape = true;
+            }
+        }
+        if requires_full_inline {
+            break;
+        }
+        i += CHUNK;
+    }
+    // Handle remaining bytes (tail < 8).
+    if !requires_full_inline {
+        while i < bytes.len() {
+            let f = scan_table[bytes[i] as usize];
+            if f & SCAN_FULL != 0 {
+                requires_full_inline = true;
+                has_backtick = f & SCAN_IS_BACKTICK != 0;
+                break;
+            }
+            if f & SCAN_EMPH != 0 {
+                has_emphasis = true;
+            }
+            if f & SCAN_BREAK != 0 {
+                has_breaks = true;
+            }
+            if f & SCAN_ESCAPE != 0 {
+                needs_html_escape = true;
+            }
+            i += 1;
         }
     }
 
@@ -144,8 +257,12 @@ pub(crate) fn parse_inline_pass(
             emit_breaks_and_emphasis(out, raw, bytes, opts, &mut bufs.em_delims);
         } else if has_emphasis {
             emit_emphasis_only(out, raw, bytes, &mut bufs.em_delims);
-        } else if needs_html_escape {
-            escape_html_into(out, raw);
+        } else if needs_html_escape || opts.collapse_whitespace {
+            if opts.collapse_whitespace {
+                crate::html::collapse_and_escape_into(out, raw);
+            } else {
+                escape_html_into(out, raw);
+            }
         } else {
             out.push_str(raw);
         }
@@ -156,7 +273,7 @@ pub(crate) fn parse_inline_pass(
     if bufs.items.capacity() == 0 {
         bufs.items.reserve(raw.len() / 20 + 4);
     }
-    let mut p = InlineScanner::new_with_bufs(raw, refs, opts, bufs);
+    let mut p = InlineScanner::new_with_bufs(raw, refs, opts, bufs, has_backtick);
     p.scan_all();
     if !p.delims.is_empty() {
         p.process_emphasis(0);
@@ -460,72 +577,17 @@ pub(crate) struct InlineBuffers {
     brackets: Vec<BracketInfo>,
     links: Vec<LinkInfo>,
     em_delims: Vec<EmDelim>,
-    special: [u8; 256],
-    special_fingerprint: u8,
 }
 
 impl InlineBuffers {
     pub(crate) fn new() -> Self {
-        let opts = ParseOptions::default();
         Self {
             items: Vec::with_capacity(64),
             delims: Vec::with_capacity(16),
             brackets: Vec::with_capacity(8),
             links: Vec::with_capacity(8),
             em_delims: Vec::with_capacity(16),
-            special: Self::build_special_table(&opts),
-            special_fingerprint: Self::opts_fingerprint(&opts),
         }
-    }
-
-    /// Returns a reference to the SPECIAL table for `opts`, rebuilding if the options changed.
-    #[inline]
-    pub(crate) fn special_for(&mut self, opts: &ParseOptions) -> &[u8; 256] {
-        let fp = Self::opts_fingerprint(opts);
-        if fp != self.special_fingerprint {
-            self.special = Self::build_special_table(opts);
-            self.special_fingerprint = fp;
-        }
-        &self.special
-    }
-
-    #[inline(always)]
-    fn opts_fingerprint(opts: &ParseOptions) -> u8 {
-        (opts.enable_strikethrough as u8)
-            | ((opts.enable_highlight as u8) << 1)
-            | ((opts.enable_underline as u8) << 2)
-            | ((opts.enable_autolink as u8) << 3)
-    }
-
-    fn build_special_table(opts: &ParseOptions) -> [u8; 256] {
-        let mut t = [0u8; 256];
-        t[b'*' as usize] = SPECIAL_ANY;
-        t[b'_' as usize] = SPECIAL_ANY;
-        let complex = SPECIAL_ANY | SPECIAL_COMPLEX;
-        t[b'\\' as usize] = complex;
-        t[b'`' as usize] = complex;
-        t[b'!' as usize] = complex;
-        t[b'[' as usize] = complex;
-        t[b']' as usize] = complex;
-        t[b'<' as usize] = complex;
-        t[b'&' as usize] = complex;
-        t[b'\n' as usize] = complex;
-        t[b'>' as usize] = SPECIAL_ESCAPE;
-        t[b'"' as usize] = SPECIAL_ESCAPE;
-        if opts.enable_strikethrough {
-            t[b'~' as usize] = complex;
-        }
-        if opts.enable_highlight {
-            t[b'=' as usize] = complex;
-        }
-        if opts.enable_underline {
-            t[b'+' as usize] = complex;
-        }
-        if opts.enable_autolink {
-            t[b':' as usize] = complex;
-            t[b'@' as usize] = complex;
-        }
-        t
     }
 }
 
@@ -598,6 +660,12 @@ enum InlineItem {
     },
     LinkStart(u16),
     LinkEnd,
+    /// `[[text]]` wiki link. The range covers the text between the `[[` and `]]`.
+    WikiLink(usize, usize),
+    /// `$...$` inline math. Range covers content (excluding delimiters).
+    MathInline(usize, usize),
+    /// `$$...$$` display math. Range covers content (excluding delimiters).
+    MathDisplay(usize, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -615,13 +683,15 @@ struct InlineScanner<'a> {
     pos: usize,
     refs: &'a LinkRefMap,
     opts: &'a ParseOptions,
-    special: &'a [u8; 256],
     items: &'a mut Vec<InlineItem>,
     delims: &'a mut Vec<usize>,
     brackets: &'a mut Vec<BracketInfo>,
     links: &'a mut Vec<LinkInfo>,
-    /// Bitfield: bit N set means no closing backtick run of length N exists.
-    backtick_no_match: u64,
+    /// `backtick_last[n]` = last byte offset of a run of length `n` (`u32::MAX` = absent).
+    /// Covers lengths 1–63; longer runs go into the overflow map (only allocated when needed).
+    /// Pre-populated at construction for O(1) bail in `scan_code_span`.
+    backtick_last: [u32; 64],
+    backtick_last_long: Option<rustc_hash::FxHashMap<u32, u32>>,
 }
 
 impl<'a> InlineScanner<'a> {
@@ -630,28 +700,54 @@ impl<'a> InlineScanner<'a> {
         refs: &'a LinkRefMap,
         opts: &'a ParseOptions,
         bufs: &'a mut InlineBuffers,
+        has_backtick: bool,
     ) -> Self {
         bufs.items.clear();
         bufs.delims.clear();
         bufs.brackets.clear();
         bufs.links.clear();
-        let special = bufs.special_for(opts) as *const [u8; 256];
+        // Only scan for backtick positions when the pre-scan confirmed at least one backtick.
+        let (backtick_last, backtick_last_long) = if has_backtick {
+            Self::build_backtick_last(input.as_bytes())
+        } else {
+            ([u32::MAX; 64], None)
+        };
         Self {
             input,
             bytes: input.as_bytes(),
             pos: 0,
             refs,
             opts,
-            // SAFETY: `special` points into `bufs.special` which lives as long as `bufs`.
-            // We hold `&mut bufs` for the lifetime of this scanner (bufs is not accessed again
-            // until the scanner is dropped), so the reference is valid for `'a`.
-            special: unsafe { &*special },
             items: &mut bufs.items,
             delims: &mut bufs.delims,
             brackets: &mut bufs.brackets,
             links: &mut bufs.links,
-            backtick_no_match: 0,
+            backtick_last,
+            backtick_last_long,
         }
+    }
+
+    /// Single forward pass using memchr: record the last byte offset of each backtick run length.
+    fn build_backtick_last(bytes: &[u8]) -> ([u32; 64], Option<rustc_hash::FxHashMap<u32, u32>>) {
+        let mut last = [u32::MAX; 64];
+        let mut long: Option<rustc_hash::FxHashMap<u32, u32>> = None;
+        let mut i = 0;
+        while let Some(rel) = memchr::memchr(b'`', &bytes[i..]) {
+            let start = i + rel;
+            i = start;
+            let mut run = 0usize;
+            while i < bytes.len() && bytes[i] == b'`' {
+                run += 1;
+                i += 1;
+            }
+            if run < 64 {
+                last[run] = start as u32;
+            } else {
+                long.get_or_insert_with(rustc_hash::FxHashMap::default)
+                    .insert(run as u32, start as u32);
+            }
+        }
+        (last, long)
     }
 }
 
