@@ -7,7 +7,6 @@
 /.wasm-tools
 /.cargo-home
 .DS_Store
-/benchmark/results/bench.csv
-/benchmark/results/rust-markdown-bench-*.csv
-/benchmark/results/compare-bench-*.csv
+/benchmark/bun-results.json
+/playground/public/benchmark-data.json
 /vendor

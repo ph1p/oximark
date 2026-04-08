@@ -28,8 +28,7 @@ pnpm check                    # cargo fmt --check && oxlint && oxfmt --check
 pnpm fmt                      # cargo fmt && oxfmt --write
 pnpm lint                     # oxlint
 pnpm test                     # alias for cargo test --offline
-pnpm bench                    # cargo bench + generate report (benchmark/report.mjs)
-pnpm bench:full               # same but includes md4c (requires: brew install md4c)
+pnpm bench                    # full benchmark: Rust (md4c) + Bun + WASM → single history JSON (requires: brew install md4c)
 ```
 
 ## Architecture
@@ -81,9 +80,8 @@ Two-phase pipeline: **block parsing → inline parsing → HTML rendering**.
 ### Benchmark (`benchmark/`)
 
 - `benchmark/parse.rs` — criterion benchmarks comparing ironmark vs comrak, pulldown-cmark, markdown-it, markdown-rs; md4c included when `--features bench-md4c` is passed (requires system `md4c`: `brew install md4c`)
-- `benchmark/report.mjs` — generates SVG report from benchmark results
-- `benchmark/results.svg` — latest benchmark results chart
-- `benchmark/history/YYYY-MM-DD.csv` — dated snapshot written on each run (`date,group,parser,input_bytes,median_ns`); commit these to build a performance trend record
+- `benchmark/report.mjs` — runs Bun + WASM benchmarks, reads the Rust CSV, merges all results into a single dated history JSON; deletes the CSV after reading
+- `benchmark/history/YYYY-MM-DD.json` — dated snapshot (Rust + WASM + Bun results); commit these to build a performance trend record; CSV files are temporary intermediates deleted by `report.mjs`
 
 ### Playground (`playground/`)
 

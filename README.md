@@ -6,31 +6,49 @@ Fast Markdown to HTML/AST parser written in Rust with **zero third-party** parsi
 
 ## Options
 
-### Extensions
+### Extensions (default `true`)
 
-All extension options default to `true`.
+| Option        | JS (`camelCase`)           | Rust (`snake_case`)           | Description                    |
+| ------------- | -------------------------- | ----------------------------- | ------------------------------ |
+| Hard breaks   | `hardBreaks`               | `hard_breaks`                 | Every newline becomes `<br />` |
+| Highlight     | `enableHighlight`          | `enable_highlight`            | `==text==` → `<mark>`          |
+| Strikethrough | `enableStrikethrough`      | `enable_strikethrough`        | `~~text~~` → `<del>`           |
+| Underline     | `enableUnderline`          | `enable_underline`            | `++text++` → `<u>`             |
+| Tables        | `enableTables`             | `enable_tables`               | Pipe table syntax              |
+| Autolink      | `enableAutolink`           | `enable_autolink`             | Bare URLs & emails → `<a>`     |
+| Task lists    | `enableTaskLists`          | `enable_task_lists`           | `- [ ]` / `- [x]` checkboxes   |
+| Indented code | `enableIndentedCodeBlocks` | `enable_indented_code_blocks` | 4-space indent → `<pre><code>` |
 
-| Option        | JS (`camelCase`)      | Rust (`snake_case`)    | Description                    |
-| ------------- | --------------------- | ---------------------- | ------------------------------ |
-| Hard breaks   | `hardBreaks`          | `hard_breaks`          | Every newline becomes `<br />` |
-| Highlight     | `enableHighlight`     | `enable_highlight`     | `==text==` → `<mark>`          |
-| Strikethrough | `enableStrikethrough` | `enable_strikethrough` | `~~text~~` → `<del>`           |
-| Underline     | `enableUnderline`     | `enable_underline`     | `++text++` → `<u>`             |
-| Tables        | `enableTables`        | `enable_tables`        | Pipe table syntax              |
-| Autolink      | `enableAutolink`      | `enable_autolink`      | Bare URLs & emails → `<a>`     |
-| Task lists    | `enableTaskLists`     | `enable_task_lists`    | `- [ ]` / `- [x]` checkboxes   |
+### Extensions (default `false`)
+
+| Option              | JS (`camelCase`)       | Rust (`snake_case`)      | Description                                            |
+| ------------------- | ---------------------- | ------------------------ | ------------------------------------------------------ |
+| Wiki links          | `enableWikiLinks`      | `enable_wiki_links`      | `[[page]]` → `<a href="page">`                         |
+| LaTeX math          | `enableLatexMath`      | `enable_latex_math`      | `$inline$` and `$$display$$` → `<span class="math-…">` |
+| Heading IDs         | `enableHeadingIds`     | `enable_heading_ids`     | Auto `id=` on headings from slugified text             |
+| Heading anchors     | `enableHeadingAnchors` | `enable_heading_anchors` | `<a class="anchor">` inside each heading (implies IDs) |
+| Permissive headings | `permissiveAtxHeaders` | `permissive_atx_headers` | Allow `#Heading` without space after `#`               |
 
 ### Security
 
-| Option           | JS (`camelCase`) | Rust (`snake_case`) | Default        | Description                                                 |
-| ---------------- | ---------------- | ------------------- | -------------- | ----------------------------------------------------------- |
-| Disable raw HTML | `disableRawHtml` | `disable_raw_html`  | `false`        | Escape HTML blocks & inline HTML instead of passing through |
-| Max nesting      | —                | `max_nesting_depth` | `128`          | Limit blockquote/list nesting depth (DoS prevention)        |
-| Max input size   | —                | `max_input_size`    | `0` (no limit) | Truncate input beyond this byte count                       |
+| Option           | JS (`camelCase`) | Rust (`snake_case`) | Default        | Description                                                        |
+| ---------------- | ---------------- | ------------------- | -------------- | ------------------------------------------------------------------ |
+| Disable raw HTML | `disableRawHtml` | `disable_raw_html`  | `false`        | Escape **all** HTML blocks and inline HTML                         |
+| No HTML blocks   | `noHtmlBlocks`   | `no_html_blocks`    | `false`        | Escape block-level HTML only (more granular than `disableRawHtml`) |
+| No HTML spans    | `noHtmlSpans`    | `no_html_spans`     | `false`        | Escape inline HTML only                                            |
+| Tag filter       | `tagFilter`      | `tag_filter`        | `false`        | GFM tag filter: escape `<script>`, `<iframe>`, etc.                |
+| Max nesting      | —                | `max_nesting_depth` | `128`          | Limit blockquote/list nesting depth (DoS prevention)               |
+| Max input size   | —                | `max_input_size`    | `0` (no limit) | Truncate input beyond this byte count                              |
 
 > In the WASM build, `max_nesting_depth` is fixed at `128` and `max_input_size` at `10 MB`.
 
 Dangerous URI schemes (`javascript:`, `vbscript:`, `data:` except `data:image/…`) are **always** stripped from link and image destinations, regardless of options.
+
+### Other options
+
+| Option              | JS (`camelCase`)     | Rust (`snake_case`)   | Default | Description                                       |
+| ------------------- | -------------------- | --------------------- | ------- | ------------------------------------------------- |
+| Collapse whitespace | `collapseWhitespace` | `collapse_whitespace` | `false` | Collapse runs of spaces/tabs in text to one space |
 
 ## JavaScript / TypeScript
 
@@ -188,14 +206,12 @@ Parsing always uses the default `ParseOptions` (all extensions enabled, `disable
 
 ## Benchmarks
 
-![Benchmark results](benchmark/results.svg)
-
-Compares ironmark against pulldown-cmark, comrak, markdown-it, and markdown-rs. Results are also saved as `benchmark/results.csv`.
+Compares ironmark against pulldown-cmark, comrak, markdown-it, and markdown-rs. Results are available at [ph1p.js.org/ironmark/#benchmark](https://ph1p.js.org/ironmark/#benchmark).
 
 ```bash
 cargo bench                          # run all benchmarks
 cargo bench --features bench-md4c   # include md4c (requires: brew install md4c)
-pnpm bench                          # run + regenerate SVG report
+pnpm bench                          # run + update playground data
 ```
 
 ## Development

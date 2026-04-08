@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { writePlaygroundData } from "../benchmark/generators.mjs";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const wasmPath = join(dir, "pkg", "ironmark_bg.wasm");
@@ -25,3 +26,5 @@ export const parse = createParse(wasmGlue.parse);
 
 writeFileSync(outPath, source);
 console.log(`Generated ${outPath} (${(wasmBase64.length / 1024).toFixed(1)} KiB base64)`);
+
+writePlaygroundData();
