@@ -1,0 +1,499 @@
+import { useEffect, useState } from "react";
+import type { BenchEntry, BenchmarkData, BenchSection, TrendPoint } from "./types";
+
+// ─── Parser display config ───────────────────────────────────────────────────
+
+const COLORS: Record<string, string> = {
+  ironmark: "#e8590c",
+  pulldown_cmark: "#1971c2",
+  comrak: "#2f9e44",
+  markdown_rs: "#c2185b",
+  markdown_it: "#6741d9",
+  md4c: "#d97706",
+  "markdown-wasm": "#7048e8",
+  md4w: "#0ea5e9",
+  bun: "#f4d9a0",
+};
+
+const LABELS: Record<string, string> = {
+  ironmark: "ironmark",
+  pulldown_cmark: "pulldown-cmark",
+  comrak: "comrak",
+  markdown_rs: "markdown-rs",
+  markdown_it: "markdown-it",
+  md4c: "md4c",
+  "markdown-wasm": "markdown-wasm",
+  md4w: "md4w",
+  bun: "Bun built-in",
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmtNs(ns: number): string {
+  if (ns < 1000) return `${ns.toFixed(0)} ns`;
+  if (ns < 1e6) return `${(ns / 1000).toFixed(1)} µs`;
+  return `${(ns / 1e6).toFixed(2)} ms`;
+}
+
+function fmtThroughput(bytes: number, ns: number): string {
+  if (!bytes || !ns) return "-";
+  return `${(bytes / (1024 * 1024) / (ns / 1e9)).toFixed(1)} MB/s`;
+}
+
+function fmtBytes(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fmtDate(ts: string): string {
+  // Handles both YYYY-MM-DD_HH-MM-SS (history files) and ISO strings (generatedAt)
+  const s = ts.slice(0, 16).replace("T", "_");
+  const [date, time] = s.split("_");
+  return time ? `${date} ${time.replace(/-/g, ":")}` : date;
+}
+
+// ─── BenchCard ───────────────────────────────────────────────────────────────
+
+function BenchCard({ bench }: { bench: BenchEntry }) {
+  const entries = Object.entries(bench.results)
+    .map(([lib, r]) => ({ lib, ...r }))
+    .filter((e) => e.median_ns > 0)
+    .sort((a, b) => a.median_ns - b.median_ns);
+
+  if (entries.length === 0) return null;
+
+  const winner = entries[0];
+  const maxTp = Math.max(
+    ...entries.map((e) => (bench.bytes ? bench.bytes / e.median_ns : 1 / e.median_ns)),
+  );
+  const speedup =
+    entries.length >= 2
+      ? entries[1].median_ns / winner.median_ns > 1.01
+        ? `${(entries[1].median_ns / winner.median_ns).toFixed(1)}× faster`
+        : "~tied"
+      : null;
+
+  return (
+    <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <span className="text-xs text-zinc-400 font-medium">
+          {bench.name}
+          {bench.bytes > 0 && <span className="text-zinc-600 ml-1">({fmtBytes(bench.bytes)})</span>}
+        </span>
+        {speedup && (
+          <span
+            className="text-xs font-semibold px-2 py-0.5 rounded border"
+            style={{
+              color: COLORS[winner.lib] ?? "#e8590c",
+              borderColor: `${COLORS[winner.lib] ?? "#e8590c"}99`,
+            }}
+          >
+            {LABELS[winner.lib] ?? winner.lib} · {speedup}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        {entries.map((e) => {
+          const tp = bench.bytes ? bench.bytes / e.median_ns : 1 / e.median_ns;
+          const pct = tp / maxTp;
+          const isWinner = e.lib === winner.lib;
+          const color = COLORS[e.lib] ?? "#888";
+          const label = LABELS[e.lib] ?? e.lib;
+
+          return (
+            <div key={e.lib} className="flex items-center gap-2 text-xs">
+              <span
+                className="w-28 shrink-0 text-right truncate"
+                style={{ color: isWinner ? "#fff" : "#666", fontWeight: isWinner ? 600 : 400 }}
+              >
+                {label}
+              </span>
+              <div className="flex-1 h-5 rounded bg-zinc-800 overflow-hidden min-w-0">
+                <div
+                  className="h-full rounded"
+                  style={{
+                    width: `${Math.max(1, pct * 100).toFixed(1)}%`,
+                    backgroundColor: color,
+                  }}
+                />
+              </div>
+              <span className="w-16 shrink-0 text-right text-zinc-300 tabular-nums">
+                {fmtNs(e.median_ns)}
+              </span>
+              <span className="w-20 shrink-0 text-right text-zinc-600 tabular-nums hidden sm:block">
+                {fmtThroughput(bench.bytes, e.median_ns)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── BenchSectionView ────────────────────────────────────────────────────────
+
+function BenchSectionView({ section }: { section: BenchSection }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-zinc-300">{section.title}</h3>
+      {section.benches.map((b) => (
+        <BenchCard key={b.name} bench={b} />
+      ))}
+    </div>
+  );
+}
+
+// ─── TrendChart ──────────────────────────────────────────────────────────────
+
+const TREND_SERIES: { key: keyof TrendPoint; label: string; color: string }[] = [
+  { key: "ironmark_wasm_ns", label: "WASM (Node)", color: "#e8590c" },
+  { key: "ironmark_bun_ns", label: "Bun", color: "#f4d9a0" },
+  { key: "ironmark_rust_ns", label: "Native Rust", color: "#1971c2" },
+];
+
+function TrendChart({ trend }: { trend: TrendPoint[] }) {
+  if (trend.length < 2) {
+    return (
+      <p className="text-sm text-zinc-500 text-center py-12">
+        Run <code className="text-zinc-400">pnpm bench</code> multiple times to see a performance
+        trend.
+      </p>
+    );
+  }
+
+  const W = 600;
+  const H = 200;
+  const PAD = { top: 16, right: 16, bottom: 36, left: 64 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+
+  const allValues = trend.flatMap((t) =>
+    TREND_SERIES.map((s) => t[s.key] as number | undefined).filter((v): v is number => v != null),
+  );
+  const minV = Math.min(...allValues);
+  const maxV = Math.max(...allValues);
+  const range = maxV - minV || 1;
+
+  const px = (i: number) => PAD.left + (i / (trend.length - 1)) * chartW;
+  const py = (v: number) => PAD.top + chartH - ((v - minV) / range) * chartH;
+
+  const activeSeries = TREND_SERIES.filter((s) => trend.some((t) => t[s.key] != null));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-4 flex-wrap">
+        {activeSeries.map((s) => (
+          <div key={s.key} className="flex items-center gap-1.5 text-xs text-zinc-400">
+            <span
+              className="w-3 h-0.5 rounded-full inline-block"
+              style={{ backgroundColor: s.color }}
+            />
+            {s.label}
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          width={W}
+          height={H}
+          className="max-w-full"
+          style={{ fontFamily: "ui-monospace, monospace" }}
+        >
+          <line
+            x1={PAD.left}
+            y1={PAD.top}
+            x2={PAD.left + chartW}
+            y2={PAD.top}
+            stroke="#333"
+            strokeDasharray="3,3"
+          />
+          <line
+            x1={PAD.left}
+            y1={PAD.top + chartH}
+            x2={PAD.left + chartW}
+            y2={PAD.top + chartH}
+            stroke="#333"
+            strokeDasharray="3,3"
+          />
+          <text x={PAD.left - 6} y={PAD.top + 4} textAnchor="end" fill="#666" fontSize="10">
+            {fmtNs(maxV)}
+          </text>
+          <text
+            x={PAD.left - 6}
+            y={PAD.top + chartH + 4}
+            textAnchor="end"
+            fill="#666"
+            fontSize="10"
+          >
+            {fmtNs(minV)}
+          </text>
+
+          {activeSeries.map((s) => {
+            const pts = trend
+              .map((t, i) => {
+                const v = t[s.key] as number | undefined;
+                return v != null ? `${px(i).toFixed(1)},${py(v).toFixed(1)}` : null;
+              })
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <polyline
+                key={s.key}
+                points={pts}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+            );
+          })}
+
+          {trend.map((t, i) =>
+            activeSeries.map((s) => {
+              const v = t[s.key] as number | undefined;
+              if (v == null) return null;
+              return (
+                <circle key={`${s.key}-${i}`} cx={px(i)} cy={py(v)} r="3.5" fill={s.color}>
+                  <title>
+                    {fmtDate(t.timestamp)} · {s.label}: {fmtNs(v)}
+                  </title>
+                </circle>
+              );
+            }),
+          )}
+
+          {trend.map((t, i) =>
+            trend.length <= 6 || i === 0 || i === trend.length - 1 ? (
+              <text
+                key={i}
+                x={px(i)}
+                y={H - 6}
+                textAnchor={i === 0 ? "start" : i === trend.length - 1 ? "end" : "middle"}
+                fill="#555"
+                fontSize="9"
+              >
+                {fmtDate(t.timestamp)}
+              </text>
+            ) : null,
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ─── RankingOverview ─────────────────────────────────────────────────────────
+
+type RankEntry = { lib: string; wins: number; total: number; avgSpeedup: number };
+
+function buildRanking(latest: BenchmarkData["latest"]): RankEntry[] {
+  const wins: Record<string, number> = {};
+  const total: Record<string, number> = {};
+  const speedupSum: Record<string, number> = {};
+
+  const allSections = [
+    ...(latest.wasm?.sections ?? []),
+    ...(latest.bun?.sections ?? []),
+    ...(latest.rust?.sections ?? []),
+  ];
+
+  for (const section of allSections) {
+    for (const bench of section.benches) {
+      const entries = Object.entries(bench.results)
+        .filter(([, r]) => r.median_ns > 0)
+        .sort(([, a], [, b]) => a.median_ns - b.median_ns);
+      if (entries.length === 0) continue;
+      const fastestNs = entries[0][1].median_ns;
+      for (const [lib, r] of entries) {
+        total[lib] = (total[lib] ?? 0) + 1;
+        speedupSum[lib] = (speedupSum[lib] ?? 0) + r.median_ns / fastestNs;
+      }
+      const [winner] = entries[0];
+      wins[winner] = (wins[winner] ?? 0) + 1;
+    }
+  }
+
+  return Object.keys(total)
+    .map((lib) => ({
+      lib,
+      wins: wins[lib] ?? 0,
+      total: total[lib],
+      avgSpeedup: speedupSum[lib] / total[lib],
+    }))
+    .sort((a, b) => b.wins - a.wins || a.avgSpeedup - b.avgSpeedup);
+}
+
+function RankingOverview({ latest }: { latest: BenchmarkData["latest"] }) {
+  const ranking = buildRanking(latest);
+  if (ranking.length === 0) return null;
+
+  const maxWins = ranking[0].wins;
+
+  return (
+    <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+        Overall Ranking
+      </h3>
+      <div className="flex flex-col gap-2">
+        {ranking.map((e, i) => {
+          const color = COLORS[e.lib] ?? "#888";
+          const label = LABELS[e.lib] ?? e.lib;
+          const pct = maxWins > 0 ? e.wins / maxWins : 0;
+          const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+          return (
+            <div key={e.lib} className="flex items-center gap-2 text-xs">
+              <span className="w-5 shrink-0 text-center text-sm">
+                {medal ?? <span className="text-zinc-600">{i + 1}</span>}
+              </span>
+              <span
+                className="w-28 shrink-0 truncate font-medium"
+                style={{ color: i === 0 ? "#fff" : "#999" }}
+              >
+                {label}
+              </span>
+              <div className="flex-1 h-4 rounded bg-zinc-800 overflow-hidden min-w-0">
+                <div
+                  className="h-full rounded"
+                  style={{ width: `${Math.max(1, pct * 100).toFixed(1)}%`, backgroundColor: color }}
+                />
+              </div>
+              <span className="w-20 shrink-0 text-right tabular-nums text-zinc-300">
+                {e.wins}/{e.total} wins
+              </span>
+              <span className="w-16 shrink-0 text-right tabular-nums text-zinc-600 hidden sm:block">
+                {e.avgSpeedup.toFixed(2)}× avg
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-zinc-600">
+        Wins = fastest in a benchmark · avg = mean slowdown vs winner (1.00× = always fastest)
+      </p>
+    </div>
+  );
+}
+
+// ─── BenchmarkPage ───────────────────────────────────────────────────────────
+
+type InnerTab = "latest" | "trend";
+
+export function BenchmarkPage() {
+  const [data, setData] = useState<BenchmarkData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [innerTab, setInnerTab] = useState<InnerTab>("latest");
+
+  useEffect(() => {
+    fetch("/benchmark-data.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d: BenchmarkData) => setData(d))
+      .catch(() => setError("No benchmark data found. Run pnpm bench to generate it."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-zinc-950 text-zinc-100">
+      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold">Benchmarks</h2>
+          {data?.generatedAt && (
+            <p className="text-xs text-zinc-500 mt-0.5">Generated {fmtDate(data.generatedAt)}</p>
+          )}
+        </div>
+
+        {loading && <p className="text-sm text-zinc-500">Loading benchmark data…</p>}
+
+        {error && (
+          <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4">
+            <p className="text-sm text-zinc-400">{error}</p>
+            <p className="text-xs text-zinc-600 mt-2">
+              Run <code className="text-zinc-500">pnpm bench</code> from the project root.
+            </p>
+          </div>
+        )}
+
+        {data && (
+          <>
+            {/* Inner tabs */}
+            <div className="flex gap-4 border-b border-zinc-800">
+              {(["latest", "trend"] as InnerTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setInnerTab(tab)}
+                  className={`pb-2 text-sm font-medium capitalize border-b-2 -mb-px transition-colors ${
+                    innerTab === tab
+                      ? "border-zinc-100 text-zinc-100"
+                      : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {tab === "trend" ? "Trend" : "Latest"}
+                </button>
+              ))}
+            </div>
+
+            {/* Latest tab */}
+            {innerTab === "latest" && (
+              <div className="space-y-10">
+                <RankingOverview latest={data.latest} />
+                {data.latest.wasm && (
+                  <div className="space-y-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      WASM · Node.js
+                    </h3>
+                    {data.latest.wasm.sections.map((s) => (
+                      <BenchSectionView key={s.title} section={s} />
+                    ))}
+                  </div>
+                )}
+                {data.latest.bun && (
+                  <div className="space-y-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      WASM · Bun runtime{" "}
+                      <span className="normal-case font-normal text-zinc-600">
+                        (+ Bun built-in native)
+                      </span>
+                    </h3>
+                    {data.latest.bun.sections.map((s) => (
+                      <BenchSectionView key={s.title} section={s} />
+                    ))}
+                  </div>
+                )}
+                {data.latest.rust && (
+                  <div className="space-y-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                      Native Rust
+                    </h3>
+                    {data.latest.rust.sections.map((s) => (
+                      <BenchSectionView key={s.title} section={s} />
+                    ))}
+                  </div>
+                )}
+                {!data.latest.rust && (
+                  <p className="text-xs text-zinc-600">
+                    Native Rust results not available — run{" "}
+                    <code className="text-zinc-500">cargo bench</code> to include them.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Trend tab */}
+            {innerTab === "trend" && (
+              <div className="space-y-4">
+                <p className="text-xs text-zinc-500">
+                  ironmark — CommonMark Spec median parse time across runs
+                </p>
+                <TrendChart trend={data.trend} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

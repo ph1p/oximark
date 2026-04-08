@@ -11,42 +11,104 @@ import { DEFAULT_PARSE_OPTIONS } from "./components/types";
 
 export const DEFAULT_MARKDOWN = `# Markdown Playground
 
-Write **markdown** on the left and see the _rendered HTML_ on the right.
-
-## Features
-
-- Live preview as you type
-- Supports **bold**, *italic*, and \`code\`
-- Links: [Example](https://example.com)
-- Images: ![alt](https://placeholdit.com/200x200/dddddd/999999?font=inter)
-
-## Code Block
-
-\`\`\`rust
-fn main() {
-    println!("Hello, world!");
-}
-\`\`\`
-
-## Table
-
-| Name  | Score | Grade |
-| :---- | ----: | :---: |
-| Alice |    95 |   A   |
-| Bob   |    82 |   B   |
-
-## Blockquote
-
-> Markdown is a lightweight markup language
-> that you can use to add formatting to plain text.
+Write **markdown** here and see the rendered HTML live on the right.
+ironmark supports all CommonMark 0.31.2 features plus a range of extensions.
 
 ---
 
-1. First item
-2. Second item
-   - Nested bullet
-   - Another one
-3. Third item
+## Inline formatting
+
+**bold**, *italic*, \`inline code\`, ~~strikethrough~~, ==highlight==, ++underline++
+
+Autolinks: https://github.com/anthonynmh/ironmark and email@example.com
+
+HTML entities: &copy; &mdash; &frac12;
+
+## Links & images
+
+[CommonMark spec](https://spec.commonmark.org) — standard link
+
+[Link with title](https://commonmark.org "CommonMark")
+
+![Placeholder image](https://placehold.co/120x40/e2e8f0/475569?text=ironmark)
+
+Reference-style: [ironmark][repo]
+
+[repo]: https://github.com/anthonynmh/ironmark
+
+## Lists
+
+- Unordered item
+- Another item
+  - Nested bullet
+  - Second nested
+
+1. First ordered
+2. Second ordered
+   1. Sub-item one
+   2. Sub-item two
+
+### Task list
+
+- [x] CommonMark 0.31.2 (652/652)
+- [x] Tables, strikethrough, highlight, underline
+- [x] Wiki links and LaTeX math
+- [ ] Something left to do
+
+## Blockquote
+
+> Markdown is a lightweight markup language that you can use to add formatting
+> to plain text documents.
+>
+> — John Gruber
+
+## Code
+
+Fenced code block with syntax highlight hint:
+
+\`\`\`rust
+fn main() {
+    let md = "# Hello, ironmark!";
+    let html = ironmark::parse(md, &Default::default());
+    println!("{html}");
+}
+\`\`\`
+
+Indented code block (4-space indent):
+
+    let x = 42;
+    println!("{x}");
+
+Inline: \`let x = 42;\`
+
+## Table
+
+| Parser            | Median (ns) | Relative |
+| :---------------- | ----------: | :------: |
+| ironmark          |         210 |   1.00×  |
+| pulldown-cmark    |         310 |   1.48×  |
+| comrak            |         540 |   2.57×  |
+
+## Wiki links *(enable in Options)*
+
+[[Getting Started]]   [[Installation Guide]]
+
+## LaTeX math *(enable in Options)*
+
+Inline math: $E = mc^2$ and $\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$
+
+Display math:
+
+$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+
+## Hard breaks *(toggle in Options)*
+
+Line one
+Line two (hard break when enabled)
+
+---
+
+*ironmark — fast CommonMark-compliant Markdown in Rust*
 `;
 
 type InitPlaygroundArgs = {
@@ -104,6 +166,16 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       enableAutolink: o.enable_autolink,
       enableTaskLists: o.enable_task_lists,
       disableRawHtml: o.disable_raw_html,
+      enableHeadingIds: o.enable_heading_ids,
+      enableHeadingAnchors: o.enable_heading_anchors,
+      enableIndentedCodeBlocks: o.enable_indented_code_blocks,
+      noHtmlBlocks: o.no_html_blocks,
+      noHtmlSpans: o.no_html_spans,
+      tagFilter: o.tag_filter,
+      collapseWhitespace: o.collapse_whitespace,
+      permissiveAtxHeaders: o.permissive_atx_headers,
+      enableWikiLinks: o.enable_wiki_links,
+      enableLatexMath: o.enable_latex_math,
     };
     const html = parse(md, opts);
     args.onStatusChange(`${(performance.now() - t0).toFixed(2)}ms`);

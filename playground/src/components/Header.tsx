@@ -1,22 +1,44 @@
 import { version } from "../../../package.json";
+import type { AppView } from "./types";
 
 type HeaderProps = {
   statusText: string;
+  currentView: AppView;
 };
 
-export function Header({ statusText }: HeaderProps) {
+const NAV: { label: string; view: AppView; hash: string }[] = [
+  { label: "Editor", view: "playground", hash: "#" },
+  { label: "Benchmarks", view: "benchmarks", hash: "#benchmark" },
+];
+
+export function Header({ statusText, currentView }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-3 py-2 md:px-5 md:py-3 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
-      <div className="flex items-center gap-2 md:gap-3 min-w-0">
-        <h1 className="text-sm md:text-base font-semibold tracking-tight truncate">
-          Markdown Playground
-        </h1>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono shrink-0">
-          v{version}
-        </span>
+      <div className="flex items-center gap-3 md:gap-4 min-w-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <h1 className="text-sm md:text-base font-semibold tracking-tight">ironmark</h1>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">v{version}</span>
+        </div>
+        <nav className="flex items-center gap-1">
+          {NAV.map(({ label, view, hash }) => (
+            <a
+              key={view}
+              href={hash}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                currentView === view
+                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                  : "text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
       </div>
       <div className="flex items-center gap-2 md:gap-3 shrink-0">
-        <div className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{statusText}</div>
+        {currentView === "playground" && (
+          <div className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{statusText}</div>
+        )}
         <div className="flex items-center gap-2">
           <a
             href="https://github.com/ph1p/ironmark"

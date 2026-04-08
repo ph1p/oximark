@@ -1,5 +1,25 @@
 export type OutputTab = "preview" | "html" | "ast";
 export type MobilePanel = "editor" | OutputTab;
+export type AppView = "playground" | "benchmarks";
+
+export type BenchResult = { median_ns: number; mean_ns?: number; p95_ns?: number };
+export type BenchEntry = { name: string; bytes: number; results: Record<string, BenchResult> };
+export type BenchSection = { title: string; benches: BenchEntry[] };
+export type TrendPoint = {
+  timestamp: string;
+  ironmark_wasm_ns?: number;
+  ironmark_bun_ns?: number;
+  ironmark_rust_ns?: number;
+};
+export type BenchmarkData = {
+  generatedAt: string;
+  latest: {
+    wasm: { sections: BenchSection[] } | null;
+    rust: { sections: BenchSection[] } | null;
+    bun: { sections: BenchSection[] } | null;
+  };
+  trend: TrendPoint[];
+};
 
 export type ParseOptions = {
   hard_breaks: boolean;
@@ -10,6 +30,16 @@ export type ParseOptions = {
   enable_autolink: boolean;
   enable_task_lists: boolean;
   disable_raw_html: boolean;
+  enable_heading_ids: boolean;
+  enable_heading_anchors: boolean;
+  enable_indented_code_blocks: boolean;
+  no_html_blocks: boolean;
+  no_html_spans: boolean;
+  tag_filter: boolean;
+  collapse_whitespace: boolean;
+  permissive_atx_headers: boolean;
+  enable_wiki_links: boolean;
+  enable_latex_math: boolean;
 };
 
 export const DEFAULT_PARSE_OPTIONS: ParseOptions = {
@@ -21,4 +51,14 @@ export const DEFAULT_PARSE_OPTIONS: ParseOptions = {
   enable_autolink: true,
   enable_task_lists: true,
   disable_raw_html: false,
+  enable_heading_ids: false,
+  enable_heading_anchors: false,
+  enable_indented_code_blocks: true,
+  no_html_blocks: false,
+  no_html_spans: false,
+  tag_filter: false,
+  collapse_whitespace: false,
+  permissive_atx_headers: false,
+  enable_wiki_links: false,
+  enable_latex_math: false,
 };

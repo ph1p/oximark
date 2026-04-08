@@ -3,8 +3,9 @@ import type { EditorView } from "@codemirror/view";
 import { Header } from "./components/Header";
 import { MobileTabs } from "./components/MobileTabs";
 import { SplitPanels } from "./components/SplitPanels";
+import { BenchmarkPage } from "./components/BenchmarkPage";
 import { DEFAULT_MARKDOWN, initPlayground, type PlaygroundController } from "./playground";
-import type { MobilePanel, OutputTab, ParseOptions } from "./components/types";
+import type { AppView, MobilePanel, OutputTab, ParseOptions } from "./components/types";
 import { DEFAULT_PARSE_OPTIONS } from "./components/types";
 
 const MARKDOWN_STORAGE_KEY = "playground:markdown";
@@ -35,7 +36,18 @@ function readOptions(): ParseOptions {
   return { ...DEFAULT_PARSE_OPTIONS };
 }
 
+function readAppView(): AppView {
+  return location.hash === "#benchmark" ? "benchmarks" : "playground";
+}
+
 export function App() {
+  const [appView, setAppView] = useState<AppView>(readAppView);
+
+  useEffect(() => {
+    const onHashChange = () => setAppView(readAppView());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [statusText, setStatusText] = useState("loading wasm...");
   const [outputTab, setOutputTab] = useState<OutputTab>(() => readOutputTab());
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(() => readMobilePanel());
@@ -53,7 +65,10 @@ export function App() {
   outputTabRef.current = outputTab;
 
   useEffect(() => {
-    let disposed = false;
+    if (appView !== "playground") return;
+    if (controllerRef.current) return;
+
+    let cancelled = false;
 
     const preview = previewRef.current;
     const htmlSourceContainer = htmlSourceContainerRef.current;
@@ -70,7 +85,7 @@ export function App() {
       onStatusChange: setStatusText,
     })
       .then((controller) => {
-        if (disposed) {
+        if (cancelled) {
           controller.dispose();
           return;
         }
@@ -83,13 +98,20 @@ export function App() {
         }
       })
       .catch(() => {
-        if (!disposed) {
+        if (!cancelled) {
           setStatusText("failed to load wasm");
         }
       });
 
+    // Only cancel an in-flight init if the view changes before it resolves.
+    // The controller itself is kept alive across view switches.
     return () => {
-      disposed = true;
+      cancelled = true;
+    };
+  }, [appView]);
+
+  useEffect(() => {
+    return () => {
       controllerRef.current?.dispose();
       controllerRef.current = null;
     };
@@ -134,22 +156,28 @@ export function App() {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
-      <Header statusText={statusText} />
-      <MobileTabs panel={mobilePanel} onChange={onMobilePanelChange} />
-      <SplitPanels
-        mobilePanel={mobilePanel}
-        outputTab={outputTab}
-        onOutputTabChange={setOutputTab}
-        markdown={markdown}
-        onMarkdownValueChange={setMarkdown}
-        onMarkdownDocChange={onMarkdownDocChange}
-        onEditorReady={onEditorReady}
-        options={options}
-        onOptionsChange={setOptions}
-        previewRef={previewRef}
-        htmlSourceContainerRef={htmlSourceContainerRef}
-        astSourceContainerRef={astSourceContainerRef}
-      />
+      <Header statusText={statusText} currentView={appView} />
+      {appView === "benchmarks" ? (
+        <BenchmarkPage />
+      ) : (
+        <>
+          <MobileTabs panel={mobilePanel} onChange={onMobilePanelChange} />
+          <SplitPanels
+            mobilePanel={mobilePanel}
+            outputTab={outputTab}
+            onOutputTabChange={setOutputTab}
+            markdown={markdown}
+            onMarkdownValueChange={setMarkdown}
+            onMarkdownDocChange={onMarkdownDocChange}
+            onEditorReady={onEditorReady}
+            options={options}
+            onOptionsChange={setOptions}
+            previewRef={previewRef}
+            htmlSourceContainerRef={htmlSourceContainerRef}
+            astSourceContainerRef={astSourceContainerRef}
+          />
+        </>
+      )}
     </div>
   );
 }
