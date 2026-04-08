@@ -62,3 +62,41 @@ See [ref] for details.
 Some <em>inline html</em> here.
 
 Autolink: <https://example.com>
+
+## Wiki Links
+
+[[Getting Started]] and [[Installation Guide]] and [[API Reference]].
+
+## LaTeX Math
+
+Inline: $E = mc^2$ and $\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$.
+
+Display:
+
+$$\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}$$
+
+## Heading IDs
+
+### Section One
+
+### Section Two
+
+### Section Three
+
+## Permissive Headings
+
+#NoSpace heading one
+
+##NoSpace heading two
+
+## HTML Options
+
+<div class="block">Block HTML element.</div>
+
+Text with <span class="inline">inline HTML</span> span.
+
+## Collapse Whitespace
+
+Text with multiple spaces between words.
+
+Another line with tabs and spaces.
