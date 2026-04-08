@@ -389,7 +389,7 @@ export function BenchmarkPage() {
   const [innerTab, setInnerTab] = useState<InnerTab>("latest");
 
   useEffect(() => {
-    fetch("/benchmark-data.json")
+    fetch(`${import.meta.env.BASE_URL}benchmark-data.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d: BenchmarkData) => setData(d))
       .catch(() => setError("No benchmark data found. Run pnpm bench to generate it."))
