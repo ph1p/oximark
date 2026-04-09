@@ -65,6 +65,7 @@
 //! | `# heading` with anchor | `<h1>… <a class="anchor">` | [`enable_heading_anchors`](ParseOptions::enable_heading_anchors) |
 //! | `#Heading` (no space) | `<h1>` | [`permissive_atx_headers`](ParseOptions::permissive_atx_headers) |
 
+mod ansi;
 pub mod ast;
 mod block;
 mod entities;
@@ -73,6 +74,7 @@ mod html;
 mod inline;
 mod render;
 
+pub use ansi::{AnsiOptions, render_ansi};
 pub use ast::{Block, ListKind, TableAlignment, TableData};
 pub use block::{parse, parse_to_ast};
 
