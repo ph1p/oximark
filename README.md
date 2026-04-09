@@ -84,6 +84,37 @@ const ast = JSON.parse(astJson);
 
 `parseToAst()` returns a JSON string for portability across JS runtimes and WASM boundaries.
 
+### ANSI Terminal Output
+
+Use `renderAnsi()` to render Markdown as coloured terminal output (ANSI 256-colour escape codes). Useful for CLI tools, terminal UIs, or any environment with a TTY.
+
+````ts
+import { renderAnsi } from "ironmark";
+
+// Render with defaults (width 80, colour enabled)
+const ansi = renderAnsi("# Hello\n\n**bold** and `code`");
+process.stdout.write(ansi);
+
+// Custom terminal width and line numbers in code blocks
+const ansi = renderAnsi(
+  "# Hello\n\n```rust\nfn main() {}\n```",
+  {}, // parse options (same as parse())
+  { width: 120, lineNumbers: true },
+);
+process.stdout.write(ansi);
+
+// Plain text — strips all ANSI codes (useful for piping to files)
+const plain = renderAnsi("# Hello\n\n> quote", {}, { color: false });
+````
+
+#### ANSI options
+
+| Option        | Type      | Default | Description                                                                     |
+| ------------- | --------- | ------- | ------------------------------------------------------------------------------- |
+| `width`       | `number`  | `80`    | Column width for word-wrap, heading underlines, rule length. `0` = use default. |
+| `color`       | `boolean` | `true`  | Emit ANSI colour codes. `false` = plain text output.                            |
+| `lineNumbers` | `boolean` | `false` | Show line numbers in fenced code blocks.                                        |
+
 ### Browser / Bundler
 
 Call `init()` once before using `parse()`. It's idempotent and optionally accepts a custom `.wasm` URL.
@@ -105,6 +136,46 @@ import wasmUrl from "ironmark/ironmark.wasm?url";
 await init(wasmUrl);
 
 const html = parse("# Hello\n\nThis is **fast**.");
+```
+
+## CLI — `imcat`
+
+`imcat` renders Markdown files as coloured terminal output. It is built from the same ANSI renderer as `renderAnsi()`.
+
+```bash
+cargo install ironmark --bin imcat
+```
+
+```text
+USAGE:
+    imcat [OPTIONS] [FILE...]
+
+    When no FILE is given, reads from stdin. Use '-' for stdin explicitly.
+
+OPTIONS:
+    --width N            Terminal column width for word-wrap and heading underlines
+                         (default: auto-detect via $COLUMNS / tput cols, fallback 80)
+    --no-color           Disable ANSI escape codes (plain text)
+    -n, --line-numbers   Show line numbers in fenced code blocks
+    --no-hard-breaks     Don't turn soft newlines into hard line breaks
+    --no-tables          Disable pipe table syntax
+    --no-highlight       Disable ==highlight== syntax
+    --no-strikethrough   Disable ~~strikethrough~~ syntax
+    --no-underline       Disable ++underline++ syntax
+    --no-autolink        Disable bare URL auto-linking
+    --no-task-lists      Disable - [x] task list syntax
+    --math               Enable $inline$ and $$display$$ math
+    --wiki-links         Enable [[wiki link]] syntax
+    --max-size N         Truncate input to N bytes (0 = unlimited)
+    -h, --help           Print this help and exit
+    -V, --version        Print version and exit
+
+EXAMPLES:
+    imcat README.md
+    imcat --width 120 README.md
+    imcat --no-color README.md | less
+    echo '# Hello' | imcat
+    cat doc.md | imcat --math --wiki-links
 ```
 
 ## Rust
@@ -161,6 +232,43 @@ Exported AST types:
 - `ListKind`
 - `TableData`
 - `TableAlignment`
+
+### ANSI Terminal Output
+
+`render_ansi()` renders Markdown as ANSI-coloured terminal output. Pass `Some(&AnsiOptions { .. })` to control width, colour, and line numbers, or `None` for defaults.
+
+````rust
+use ironmark::{AnsiOptions, ParseOptions, render_ansi};
+
+fn main() {
+    // Defaults — width 80, colour enabled
+    let out = render_ansi("# Hello\n\n**bold** and `code`", &ParseOptions::default(), None);
+    print!("{out}");
+
+    // Custom options — 120 columns, line numbers in code blocks
+    let out = render_ansi(
+        "# Hello\n\n```rust\nfn main() {}\n```",
+        &ParseOptions::default(),
+        Some(&AnsiOptions { width: 120, line_numbers: true, ..AnsiOptions::default() }),
+    );
+    print!("{out}");
+
+    // Plain text — no ANSI codes (e.g. for writing to a file)
+    let plain = render_ansi(
+        "# Hello",
+        &ParseOptions::default(),
+        Some(&AnsiOptions { color: false, ..AnsiOptions::default() }),
+    );
+}
+````
+
+`AnsiOptions` fields:
+
+| Field          | Type    | Default | Description                                                                 |
+| -------------- | ------- | ------- | --------------------------------------------------------------------------- |
+| `width`        | `usize` | `80`    | Column width for word-wrap, heading underlines, rule length. `0` = disable. |
+| `color`        | `bool`  | `true`  | Emit ANSI 256-colour escape codes.                                          |
+| `line_numbers` | `bool`  | `false` | Show line numbers in fenced code blocks.                                    |
 
 ## C / C++
 
@@ -236,4 +344,4 @@ pnpm build
 
 ### Troubleshooting
 
-**`wasm32-unknown-unknown target not found`** or **`wasm-bindgen not found`** — run `pnpm setup:wasm` to install all prerequisites.
+**`wasm32-unknown-unknown target not found`** or **`wasm-bindgen not found`** — run `pnpm setup:wasm` to install all prerequisites
