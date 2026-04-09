@@ -66,3 +66,49 @@ export declare function parse(markdown: MarkdownInput, options?: ParseOptions): 
  * @returns JSON string representing the AST.
  */
 export declare function parseToAst(markdown: MarkdownInput, options?: ParseOptions): string;
+
+/**
+ * Options for the ANSI terminal renderer.
+ */
+export interface AnsiOptions {
+  /**
+   * Terminal column width for word-wrap, heading underlines, and thematic breaks.
+   * Set to `0` to disable all width-dependent formatting. Default: `80`.
+   */
+  width?: number;
+  /**
+   * Emit ANSI 256-colour escape codes. Set to `false` for plain-text output
+   * (e.g. when piping to a file or a non-colour terminal). Default: `true`.
+   */
+  color?: boolean;
+  /**
+   * Show line numbers in fenced code blocks, right-aligned to the total line
+   * count and separated from the code by a `│` border. Default: `false`.
+   */
+  lineNumbers?: boolean;
+}
+
+/**
+ * Render Markdown as ANSI-coloured terminal output.
+ *
+ * Produces a string containing ANSI 256-colour escape codes suitable for
+ * display in a terminal emulator. Headings, code blocks, inline code,
+ * blockquotes, tables, and inline formatting are all styled distinctly.
+ *
+ * @param markdown - Markdown source (string or binary).
+ * @param options - Optional parse options (same flags as `parse()`).
+ * @param ansiOptions - Optional ANSI rendering options (width, color, lineNumbers).
+ * @returns String with ANSI escape codes (or plain text when `color: false`).
+ *
+ * @example
+ * ```ts
+ * import { renderAnsi } from "ironmark";
+ * const out = renderAnsi("# Hello\n\n**bold** and `code`");
+ * process.stdout.write(out);
+ * ```
+ */
+export declare function renderAnsi(
+  markdown: MarkdownInput,
+  options?: ParseOptions,
+  ansiOptions?: AnsiOptions,
+): string;

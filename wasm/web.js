@@ -1,5 +1,5 @@
 import * as wasmGlue from "./pkg/ironmark_bg.js";
-import { createParse, createParseToAst } from "./shared.js";
+import { createParse, createParseToAst, createRenderAnsi } from "./shared.js";
 
 let initialized = false;
 
@@ -29,3 +29,4 @@ export async function init(input) {
 
 export const parse = createParse(wasmGlue.parse);
 export const parseToAst = createParseToAst(wasmGlue.parseToAst);
+export const renderAnsi = createRenderAnsi(wasmGlue.renderAnsi);

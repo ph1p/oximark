@@ -14,24 +14,24 @@ function toStr(markdown) {
 function optionArgs(markdown, options) {
   return [
     toStr(markdown),
-    options?.hardBreaks ?? undefined,
-    options?.enableHighlight ?? undefined,
-    options?.enableStrikethrough ?? undefined,
-    options?.enableUnderline ?? undefined,
-    options?.enableTables ?? undefined,
-    options?.enableAutolink ?? undefined,
-    options?.enableTaskLists ?? undefined,
-    options?.disableRawHtml ?? undefined,
-    options?.enableHeadingIds ?? undefined,
-    options?.enableHeadingAnchors ?? undefined,
-    options?.enableIndentedCodeBlocks ?? undefined,
-    options?.noHtmlBlocks ?? undefined,
-    options?.noHtmlSpans ?? undefined,
-    options?.tagFilter ?? undefined,
-    options?.collapseWhitespace ?? undefined,
-    options?.permissiveAtxHeaders ?? undefined,
-    options?.enableWikiLinks ?? undefined,
-    options?.enableLatexMath ?? undefined,
+    options?.hardBreaks,
+    options?.enableHighlight,
+    options?.enableStrikethrough,
+    options?.enableUnderline,
+    options?.enableTables,
+    options?.enableAutolink,
+    options?.enableTaskLists,
+    options?.disableRawHtml,
+    options?.enableHeadingIds,
+    options?.enableHeadingAnchors,
+    options?.enableIndentedCodeBlocks,
+    options?.noHtmlBlocks,
+    options?.noHtmlSpans,
+    options?.tagFilter,
+    options?.collapseWhitespace,
+    options?.permissiveAtxHeaders,
+    options?.enableWikiLinks,
+    options?.enableLatexMath,
   ];
 }
 
@@ -44,5 +44,17 @@ export function createParse(wasmParse) {
 export function createParseToAst(wasmParseToAst) {
   return function parseToAst(markdown, options) {
     return wasmParseToAst(...optionArgs(markdown, options));
+  };
+}
+
+export function createRenderAnsi(wasmRenderAnsi) {
+  return function renderAnsi(markdown, options) {
+    return wasmRenderAnsi(
+      ...optionArgs(markdown, options),
+      // width is plain u32 (not Option): 0 = use default (80)
+      options?.width ?? 0,
+      options?.color,
+      options?.lineNumbers,
+    );
   };
 }
