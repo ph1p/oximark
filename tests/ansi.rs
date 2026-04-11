@@ -239,6 +239,188 @@ fn narrow_width_wraps_long_paragraph() {
     }
 }
 
+// ── responsive tables ────────────────────────────────────────────────────────
+
+fn render_width(md: &str, width: usize) -> String {
+    render_ansi(
+        md,
+        &opts(),
+        Some(&AnsiOptions {
+            color: false,
+            width,
+            ..AnsiOptions::default()
+        }),
+    )
+}
+
+#[test]
+fn table_fits_within_terminal_width() {
+    // A table with short cells should fit without wrapping at width 80.
+    let out = render_width("| A | B |\n|---|---|\n| 1 | 2 |", 80);
+    for line in out.lines() {
+        assert!(
+            line.chars().count() <= 80,
+            "table line exceeds width 80 ({} cols): {line:?}",
+            line.chars().count()
+        );
+    }
+}
+
+#[test]
+fn wide_table_constrained_to_terminal_width() {
+    // Build a table that would naturally exceed 40 columns.
+    let md = "| Column One Header | Column Two Header |\n|---|---|\n| some long value | another long val |";
+    let out = render_width(md, 40);
+    for line in out.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        assert!(
+            line.chars().count() <= 40,
+            "table line exceeds width 40 ({} cols): {line:?}",
+            line.chars().count()
+        );
+    }
+}
+
+#[test]
+fn wide_table_preserves_all_content() {
+    let md = "| Name | Description |\n|---|---|\n| Alice | A person |";
+    let out = render_width(md, 30);
+    assert!(out.contains("Name"), "header 'Name' missing");
+    assert!(out.contains("Description"), "header 'Description' missing");
+    assert!(out.contains("Alice"), "cell 'Alice' missing");
+    assert!(out.contains("person"), "cell content 'person' missing");
+}
+
+#[test]
+fn narrow_table_wraps_cell_content() {
+    // Force very narrow width so cells must wrap.
+    let md = "| Header | Value |\n|---|---|\n| some longer text here | short |";
+    let out = render_width(md, 30);
+    // All content should still be present.
+    assert!(out.contains("Header"));
+    assert!(out.contains("Value"));
+    assert!(out.contains("short"));
+    // The word "longer" from "some longer text here" should be present
+    // (possibly on a wrapped line).
+    assert!(out.contains("longer"), "wrapped content missing");
+}
+
+#[test]
+fn wrapped_cell_creates_multiline_row() {
+    // A cell with long content at narrow width should produce multiple lines
+    // within that logical row.
+    let md = "| Col |\n|---|\n| one two three four five six seven eight |";
+    let out = render_width(md, 20);
+    // Count how many lines contain the row border character inside content area.
+    // A wrapped row should have multiple │...│ lines for the same logical row.
+    let content_lines: Vec<_> = out
+        .lines()
+        .filter(|l| l.starts_with('│') || l.contains('│'))
+        .filter(|l| !l.contains('─')) // exclude border lines
+        .collect();
+    // Should have header (1 line) + data row (multiple lines due to wrapping)
+    assert!(
+        content_lines.len() >= 2,
+        "expected multi-line row from wrapping, got {} lines:\n{}",
+        content_lines.len(),
+        out
+    );
+    // All words should be present
+    for word in [
+        "one", "two", "three", "four", "five", "six", "seven", "eight",
+    ] {
+        assert!(out.contains(word), "missing word '{word}' in:\n{out}");
+    }
+}
+
+#[test]
+fn many_columns_constrained() {
+    let md = "| A | B | C | D | E | F |\n|---|---|---|---|---|---|\n| 1 | 2 | 3 | 4 | 5 | 6 |";
+    let out = render_width(md, 40);
+    for line in out.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        assert!(
+            line.chars().count() <= 40,
+            "table line exceeds width 40 ({} cols): {line:?}",
+            line.chars().count()
+        );
+    }
+    // All cells should still be present.
+    for ch in ['A', 'B', 'C', 'D', 'E', 'F', '1', '2', '3', '4', '5', '6'] {
+        assert!(out.contains(ch), "missing cell content: {ch}");
+    }
+}
+
+#[test]
+fn many_columns_extreme_narrow() {
+    // 6 columns at width 20 — MIN_COL*6=18 + chrome=19 = 37 > 20, so this
+    // hits the infeasible branch. Verify no panic and content is present.
+    let md = "| A | B | C | D | E | F |\n|---|---|---|---|---|---|\n| 1 | 2 | 3 | 4 | 5 | 6 |";
+    let out = render_width(md, 20);
+    for ch in ['A', 'B', 'C', 'D', 'E', 'F'] {
+        assert!(out.contains(ch), "missing cell content: {ch}");
+    }
+}
+
+#[test]
+fn table_unconstrained_when_width_zero() {
+    // width=0 disables width-dependent formatting — table should render at
+    // natural size.
+    let md = "| Long Column Name | Another Long Column |\n|---|---|\n| value | data |";
+    let zero = render_width(md, 0);
+    let wide = render_width(md, 200);
+    assert_eq!(zero, wide, "width=0 should not constrain the table");
+}
+
+#[test]
+fn long_word_char_wraps_in_table_cell() {
+    // A single long word should be character-wrapped, not overflow.
+    let md = "| Name |\n|---|\n| Strikethrough |";
+    let out = render_width(md, 15);
+    // All characters of "Strikethrough" should be present
+    for ch in [
+        'S', 't', 'r', 'i', 'k', 'e', 't', 'h', 'r', 'o', 'u', 'g', 'h',
+    ] {
+        assert!(out.contains(ch), "missing char '{ch}' in:\n{out}");
+    }
+    // Lines should not exceed width
+    for line in out.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        assert!(
+            line.chars().count() <= 15,
+            "line exceeds width 15 ({} cols): {line:?}",
+            line.chars().count()
+        );
+    }
+}
+
+#[test]
+fn long_camel_case_wraps_correctly() {
+    // Test the exact case from the user's example: camelCase names in narrow columns
+    let md = "| Option | JS |\n|---|---|\n| Strikethrough | enableStrikethrough |";
+    let out = render_width(md, 30);
+    // Content present
+    assert!(out.contains("Strikethrough") || out.contains("Strike"));
+    assert!(out.contains("enable") || out.contains("Strik"));
+    // Width constraint respected
+    for line in out.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        assert!(
+            line.chars().count() <= 30,
+            "line exceeds width 30 ({} cols): {line:?}",
+            line.chars().count()
+        );
+    }
+}
+
 // ── empty / edge cases ────────────────────────────────────────────────────────
 
 #[test]

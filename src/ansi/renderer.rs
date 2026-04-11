@@ -1,10 +1,10 @@
 use crate::ParseOptions;
 use crate::ast::{Block, ListKind, TableAlignment, TableData};
-use crate::inline::{InlineBuffers, LinkRefMap, parse_inline_pass};
+use crate::inline::{InlineBuffers, LinkRefMap};
 
 use super::AnsiOptions;
 use super::constants::*;
-use super::inline::{html_to_ansi, parse_inline_ansi, parse_inline_ansi_heading};
+use super::inline::{parse_inline_ansi, parse_inline_ansi_heading};
 use super::wrap::{expand_tabs, visible_len, wrap_ansi};
 
 pub(super) struct AnsiRenderer<'a> {
@@ -475,36 +475,84 @@ impl<'a> AnsiRenderer<'a> {
             return;
         }
 
-        let measure = |s: &str,
-                       refs: &LinkRefMap,
-                       opts: &ParseOptions,
-                       aopts: &AnsiOptions,
-                       bufs: &mut InlineBuffers|
-         -> usize {
-            let mut html = String::new();
-            parse_inline_pass(&mut html, s, refs, opts, bufs);
-            let mut ansi_text = String::new();
-            html_to_ansi(&html, &mut ansi_text, aopts.color);
-            visible_len(&ansi_text)
-        };
-
-        // Measure column widths
+        // Single-pass: render every cell to ANSI once, measure from the result.
+        let mut header_ansi: Vec<String> = Vec::with_capacity(ncols);
         let mut col_widths: Vec<usize> = vec![0; ncols];
         for (c, cell) in table.header.iter().enumerate().take(ncols) {
-            col_widths[c] = measure(cell, self.refs, self.opts, self.aopts, self.bufs);
+            let mut ansi = String::new();
+            parse_inline_ansi(&mut ansi, cell, self.refs, self.opts, self.aopts, self.bufs);
+            col_widths[c] = visible_len(&ansi);
+            header_ansi.push(ansi);
         }
         let row_count = table.rows.len() / ncols;
-        for row in 0..row_count {
-            for (c, col_width) in col_widths.iter_mut().enumerate().take(ncols) {
-                let idx = row * ncols + c;
-                if idx < table.rows.len() {
-                    *col_width = *col_width.max(&mut measure(
-                        &table.rows[idx],
-                        self.refs,
-                        self.opts,
-                        self.aopts,
-                        self.bufs,
-                    ));
+        let mut rows_ansi: Vec<String> = Vec::with_capacity(table.rows.len());
+        for (i, cell) in table.rows.iter().enumerate() {
+            let mut ansi = String::new();
+            parse_inline_ansi(&mut ansi, cell, self.refs, self.opts, self.aopts, self.bufs);
+            let c = i % ncols;
+            if c < ncols {
+                col_widths[c] = col_widths[c].max(visible_len(&ansi));
+            }
+            rows_ansi.push(ansi);
+        }
+
+        // Constrain columns to fit terminal width.
+        // Chrome per column: 1 left pad + 1 right pad + 1 separator = 3 chars.
+        // Plus 1 char for the leading border.
+        let max_w = self.width();
+        if max_w > 0 {
+            let chrome: usize = 1 + 3 * ncols;
+            let total_natural: usize = col_widths.iter().sum();
+            let total_table = chrome + total_natural;
+            if total_table > max_w && max_w > chrome {
+                let available = max_w - chrome;
+                const MIN_COL: usize = 3;
+
+                // If even MIN_COL per column won't fit, give each column MIN_COL
+                // and accept overflow — there's no valid solution.
+                if ncols * MIN_COL > available {
+                    for w in &mut col_widths {
+                        *w = (*w).min(MIN_COL);
+                    }
+                } else {
+                    let mut new_widths = vec![0usize; ncols];
+                    let mut remaining = available;
+
+                    // First pass: lock columns already at or below minimum.
+                    let mut locked = vec![false; ncols];
+                    for c in 0..ncols {
+                        if col_widths[c] <= MIN_COL {
+                            new_widths[c] = col_widths[c];
+                            remaining -= col_widths[c];
+                            locked[c] = true;
+                        }
+                    }
+
+                    // Second pass: distribute remaining space proportionally.
+                    let unlocked: Vec<usize> = (0..ncols).filter(|&c| !locked[c]).collect();
+                    let unlocked_total: usize = unlocked.iter().map(|&c| col_widths[c]).sum();
+
+                    if unlocked_total > 0 {
+                        let mut distributed = 0usize;
+                        for (i, &c) in unlocked.iter().enumerate() {
+                            let is_last = i + 1 == unlocked.len();
+                            let share = if is_last {
+                                remaining.saturating_sub(distributed)
+                            } else {
+                                (col_widths[c] as u64 * remaining as u64 / unlocked_total as u64)
+                                    as usize
+                            };
+                            // Clamp to MIN_COL but never exceed the fair share
+                            // of remaining budget to prevent overflow.
+                            let budget = remaining
+                                .saturating_sub(distributed)
+                                .saturating_sub((unlocked.len() - i - 1) * MIN_COL);
+                            new_widths[c] = share.max(MIN_COL).min(budget.max(MIN_COL));
+                            distributed += new_widths[c];
+                        }
+                    }
+
+                    col_widths = new_widths;
                 }
             }
         }
@@ -512,82 +560,56 @@ impl<'a> AnsiRenderer<'a> {
         let border = if self.color() { FG_BORDER } else { "" };
         let reset = if self.color() { RESET } else { "" };
 
-        // Top border
-        self.out.push_str(border);
-        self.out.push('┌');
-        for (c, &w) in col_widths.iter().enumerate() {
-            for _ in 0..w + 2 {
-                self.out.push('─');
-            }
-            if c + 1 < ncols {
-                self.out.push('┬');
-            } else {
-                self.out.push('┐');
-            }
-        }
-        self.out.push_str(reset);
-        self.out.push('\n');
+        self.push_border_line('┌', '┬', '┐', &col_widths, border, reset);
 
         // Header row
-        self.render_table_row(&table.header, &col_widths, &table.alignments, true, 0);
+        self.render_table_row_ansi(&header_ansi, &col_widths, &table.alignments, true, 0);
 
-        // Header separator
-        self.out.push_str(border);
-        self.out.push('├');
-        for (c, &w) in col_widths.iter().enumerate() {
-            for _ in 0..w + 2 {
-                self.out.push('─');
-            }
-            if c + 1 < ncols {
-                self.out.push('┼');
-            } else {
-                self.out.push('┤');
-            }
-        }
-        self.out.push_str(reset);
-        self.out.push('\n');
+        self.push_border_line('├', '┼', '┤', &col_widths, border, reset);
 
         // Data rows (zebra-striped)
         for row in 0..row_count {
             let start = row * ncols;
-            let end = (start + ncols).min(table.rows.len());
-            let row_cells: Vec<_> = table.rows[start..end].iter().collect();
-            let mut padded: Vec<compact_str::CompactString> =
-                row_cells.iter().map(|c| (*c).clone()).collect();
-            while padded.len() < ncols {
-                padded.push(compact_str::CompactString::const_new(""));
-            }
-            self.render_table_row(&padded, &col_widths, &table.alignments, false, row);
+            let end = (start + ncols).min(rows_ansi.len());
+            let row_ansi = &rows_ansi[start..end];
+            self.render_table_row_ansi(row_ansi, &col_widths, &table.alignments, false, row);
         }
 
-        // Bottom border
+        self.push_border_line('└', '┴', '┘', &col_widths, border, reset);
+        self.out.push('\n');
+    }
+
+    fn push_border_line(
+        &mut self,
+        left: char,
+        mid: char,
+        right: char,
+        col_widths: &[usize],
+        border: &str,
+        reset: &str,
+    ) {
+        let ncols = col_widths.len();
         self.out.push_str(border);
-        self.out.push('└');
+        self.out.push(left);
         for (c, &w) in col_widths.iter().enumerate() {
             for _ in 0..w + 2 {
                 self.out.push('─');
             }
-            if c + 1 < ncols {
-                self.out.push('┴');
-            } else {
-                self.out.push('┘');
-            }
+            self.out.push(if c + 1 < ncols { mid } else { right });
         }
         self.out.push_str(reset);
         self.out.push('\n');
-        self.out.push('\n');
     }
 
-    pub(super) fn render_table_row(
+    /// Render a table row from pre-rendered ANSI cell strings.
+    fn render_table_row_ansi(
         &mut self,
-        cells: &[compact_str::CompactString],
+        cells_ansi: &[String],
         col_widths: &[usize],
         alignments: &[TableAlignment],
         is_header: bool,
         row_index: usize,
     ) {
-        // Zebra stripe: odd data rows get a very subtle dark background.
-        // Header rows have no background — bold gold text is distinctive enough.
         let row_bg: &str = if self.color() && !is_header && row_index % 2 == 1 {
             BG_ZEBRA
         } else {
@@ -597,58 +619,72 @@ impl<'a> AnsiRenderer<'a> {
         let border = if self.color() { FG_BORDER } else { "" };
         let reset = if self.color() { RESET } else { "" };
 
-        self.out.push_str(border);
-        self.out.push('│');
-        self.out.push_str(reset);
-
-        for (c, cell) in cells.iter().enumerate().take(col_widths.len()) {
-            let w = col_widths[c];
-            let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
-
-            let mut html = String::new();
-            parse_inline_pass(&mut html, cell, self.refs, self.opts, self.bufs);
-            let mut cell_ansi = String::new();
-            html_to_ansi(&html, &mut cell_ansi, self.color());
-            let vis = visible_len(&cell_ansi);
-            let pad = w.saturating_sub(vis);
-
-            self.out.push_str(row_bg);
-            if is_header && self.color() {
-                self.out.push_str(BOLD);
-                self.out.push_str(FG_H1); // warm gold for headers
-            }
-
-            self.out.push(' ');
-            let (lpad, rpad) = match align {
-                TableAlignment::Right => (pad, 0),
-                TableAlignment::Center => (pad / 2, pad - pad / 2),
-                _ => (0, pad),
+        // Wrap cells and collect their sub-lines.
+        let ncols = col_widths.len();
+        let mut cell_lines: Vec<Vec<String>> = Vec::with_capacity(ncols);
+        let mut max_lines = 1usize;
+        for (c, &w) in col_widths.iter().enumerate() {
+            let ansi = cells_ansi.get(c).map(|s| s.as_str()).unwrap_or("");
+            let lines = if w == 0 || visible_len(ansi) <= w {
+                vec![ansi.to_owned()]
+            } else {
+                let wrapped = wrap_ansi(ansi, w, "");
+                wrapped.split('\n').map(String::from).collect()
             };
-            for _ in 0..lpad {
-                self.out.push(' ');
+            if lines.len() > max_lines {
+                max_lines = lines.len();
             }
-            // Strip trailing RESET from cell content — we control what follows,
-            // so we re-apply the correct background ourselves.
-            let cell_out = cell_ansi.strip_suffix(RESET).unwrap_or(&cell_ansi);
-            self.out.push_str(cell_out);
-            // Re-apply row background so padding spaces inherit the row colour.
-            // For plain (no-stripe) rows this is just a RESET.
-            if self.color() {
-                self.out.push_str(RESET);
-                if !row_bg.is_empty() {
-                    self.out.push_str(row_bg);
-                }
-            }
-            for _ in 0..rpad {
-                self.out.push(' ');
-            }
-            self.out.push(' ');
-            self.out.push_str(reset);
+            cell_lines.push(lines);
+        }
 
+        for line_idx in 0..max_lines {
             self.out.push_str(border);
             self.out.push('│');
             self.out.push_str(reset);
+
+            for (c, lines) in cell_lines.iter().enumerate() {
+                let w = col_widths[c];
+                let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
+
+                let cell_ansi = lines.get(line_idx).map(|s| s.as_str()).unwrap_or("");
+                let vis = visible_len(cell_ansi);
+                let pad = w.saturating_sub(vis);
+
+                self.out.push_str(row_bg);
+                if is_header && self.color() {
+                    self.out.push_str(BOLD);
+                    self.out.push_str(FG_H1);
+                }
+
+                self.out.push(' ');
+                let (lpad, rpad) = match align {
+                    TableAlignment::Right => (pad, 0),
+                    TableAlignment::Center => (pad / 2, pad - pad / 2),
+                    _ => (0, pad),
+                };
+                for _ in 0..lpad {
+                    self.out.push(' ');
+                }
+                // Strip trailing RESET — we re-apply the correct background.
+                let cell_out = cell_ansi.strip_suffix(RESET).unwrap_or(cell_ansi);
+                self.out.push_str(cell_out);
+                if self.color() {
+                    self.out.push_str(RESET);
+                    if !row_bg.is_empty() {
+                        self.out.push_str(row_bg);
+                    }
+                }
+                for _ in 0..rpad {
+                    self.out.push(' ');
+                }
+                self.out.push(' ');
+                self.out.push_str(reset);
+
+                self.out.push_str(border);
+                self.out.push('│');
+                self.out.push_str(reset);
+            }
+            self.out.push('\n');
         }
-        self.out.push('\n');
     }
 }
