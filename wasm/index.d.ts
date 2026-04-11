@@ -86,6 +86,12 @@ export interface AnsiOptions {
    * count and separated from the code by a `│` border. Default: `false`.
    */
   lineNumbers?: boolean;
+  /**
+   * Horizontal padding to add on both sides of every output line.
+   * The output width remains `width`; padding reduces the available text area.
+   * Also adds `ceil(padding / 2)` blank lines at the top. Default: `0`.
+   */
+  padding?: number;
 }
 
 /**

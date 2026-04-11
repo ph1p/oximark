@@ -185,6 +185,7 @@ pub fn render_ansi(
     width: u32,
     color: Option<bool>,
     line_numbers: Option<bool>,
+    padding: u32,
 ) -> String {
     let parse_opts = build_options(
         hard_breaks,
@@ -210,7 +211,7 @@ pub fn render_ansi(
         width: if width == 0 { 80 } else { width as usize },
         color: color.unwrap_or(true),
         line_numbers: line_numbers.unwrap_or(false),
-        ..AnsiOptions::default()
+        padding: padding as usize,
     };
     ironmark_render_ansi(markdown, &parse_opts, Some(&ansi_opts))
 }

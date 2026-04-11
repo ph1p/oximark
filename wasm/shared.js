@@ -55,6 +55,7 @@ export function createRenderAnsi(wasmRenderAnsi) {
       ansiOptions?.width ?? 0,
       ansiOptions?.color,
       ansiOptions?.lineNumbers,
+      ansiOptions?.padding ?? 0,
     );
   };
 }

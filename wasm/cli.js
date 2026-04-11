@@ -18,6 +18,7 @@ OPTIONS:
     --width N            Terminal column width (default: auto-detect, fallback 80)
     --no-color           Disable ANSI escape codes (plain text)
     -n, --line-numbers   Show line numbers in fenced code blocks
+    --padding N          Horizontal padding on both sides of output (default: 0)
     --no-hard-breaks     Don't turn soft newlines into hard line breaks
     --no-tables          Disable pipe table syntax
     --no-highlight       Disable ==highlight== syntax
@@ -76,6 +77,15 @@ for (let i = 0; i < args.length; i++) {
       ansiOptions.width = Number(val);
       break;
     }
+    case "--padding": {
+      const val = args[++i];
+      if (val === undefined || Number.isNaN(Number(val))) {
+        console.error("error: --padding requires a numeric value");
+        process.exit(2);
+      }
+      ansiOptions.padding = Number(val);
+      break;
+    }
     case "--no-hard-breaks":
       parseOptions.hardBreaks = false;
       break;
@@ -111,6 +121,13 @@ for (let i = 0; i < args.length; i++) {
           process.exit(2);
         }
         ansiOptions.width = val;
+      } else if (args[i].startsWith("--padding=")) {
+        const val = Number(args[i].slice("--padding=".length));
+        if (Number.isNaN(val)) {
+          console.error("error: --padding requires a numeric value");
+          process.exit(2);
+        }
+        ansiOptions.padding = val;
       } else if (args[i].startsWith("-") && args[i] !== "-") {
         console.error(`error: unknown flag: ${args[i]}`);
         console.error("Run 'ironmark --help' for usage.");

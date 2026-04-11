@@ -110,7 +110,6 @@ export function App() {
     };
   }, [appView]);
 
-
   useEffect(() => {
     controllerRef.current?.setOutputTab(outputTab);
   }, [outputTab]);
