@@ -26,8 +26,8 @@
     "@uiw/react-codemirror": "^4.25.9",
     "codemirror": "^6.0.2",
     "ironmark": "link:..",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
@@ -37,7 +37,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~6.0.2",
-    "vite": "^8.0.5"
+    "vite": "^8.0.8"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

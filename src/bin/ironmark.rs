@@ -1,9 +1,9 @@
-//! `imcat` — render Markdown files as coloured terminal output.
+//! `ironmark` CLI — render Markdown files as coloured terminal output.
 //!
 //! # Usage
 //!
 //! ```text
-//! imcat [OPTIONS] [FILE...]
+//! ironmark --ansi [OPTIONS] [FILE...]
 //! ```
 //!
 //! When no `FILE` arguments are given, input is read from stdin.
@@ -13,6 +13,7 @@
 //!
 //! | Flag | Description |
 //! |---|---|
+//! | `--ansi` | Render as ANSI-coloured terminal output (required) |
 //! | `--width N` | Terminal column width for word-wrap and heading underlines (default: auto-detect via `$COLUMNS` / `tput cols`, fallback 80) |
 //! | `--no-color` / `--no-colour` | Disable ANSI escape codes (plain text output) |
 //! | `-n`, `--line-numbers` | Show line numbers in fenced code blocks |
@@ -32,18 +33,10 @@
 //! # Examples
 //!
 //! ```text
-//! # Render a file with auto-detected terminal width
-//! imcat README.md
-//!
-//! # Plain text output (no colours), piped to less
-//! imcat --no-color README.md | less
-//!
-//! # Fixed 80-column layout
-//! imcat --width 80 README.md
-//!
-//! # Render from stdin
-//! echo "# Hello **world**" | imcat
-//! cat doc.md | imcat --no-hard-breaks
+//! ironmark --ansi README.md
+//! ironmark --ansi --no-color README.md | less
+//! ironmark --ansi --width 80 README.md
+//! echo "# Hello **world**" | ironmark --ansi
 //! ```
 
 use std::io::{self, Read};
@@ -51,14 +44,15 @@ use std::io::{self, Read};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const HELP: &str = "\
-imcat — render Markdown as coloured terminal output
+ironmark — render Markdown as coloured terminal output
 
 USAGE:
-    imcat [OPTIONS] [FILE...]
+    ironmark --ansi [OPTIONS] [FILE...]
 
     When no FILE is given, reads from stdin. Use '-' for stdin explicitly.
 
 OPTIONS:
+    --ansi               Render as ANSI-coloured terminal output (required)
     --width N            Terminal column width for word-wrap and heading underlines
                          (default: auto-detect via $COLUMNS / tput cols, fallback 80)
     --no-color           Disable ANSI escape codes (plain text)
@@ -77,11 +71,11 @@ OPTIONS:
     -V, --version        Print version and exit
 
 EXAMPLES:
-    imcat README.md
-    imcat --width 120 README.md
-    imcat --no-color README.md | less
-    echo '# Hello' | imcat
-    cat doc.md | imcat --math --wiki-links
+    ironmark --ansi README.md
+    ironmark --ansi --width 120 README.md
+    ironmark --ansi --no-color README.md | less
+    echo '# Hello' | ironmark --ansi
+    cat doc.md | ironmark --ansi --math --wiki-links
 ";
 
 fn parse_usize_arg(flag: &str, value: &str) -> usize {
@@ -94,6 +88,7 @@ fn parse_usize_arg(flag: &str, value: &str) -> usize {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut files: Vec<String> = Vec::new();
+    let mut ansi_mode = false;
     let mut color = true;
     let mut line_numbers = false;
     let mut width: Option<usize> = None;
@@ -107,9 +102,10 @@ fn main() {
                 return;
             }
             "-V" | "--version" => {
-                println!("imcat {VERSION}");
+                println!("ironmark {VERSION}");
                 return;
             }
+            "--ansi" => ansi_mode = true,
             "--no-color" | "--no-colour" => color = false,
             "--line-numbers" | "-n" => line_numbers = true,
             "--no-hard-breaks" => parse_opts.hard_breaks = false,
@@ -146,12 +142,18 @@ fn main() {
             }
             arg if arg.starts_with('-') && arg != "-" => {
                 eprintln!("error: unknown flag: {arg}");
-                eprintln!("Run 'imcat --help' for usage.");
+                eprintln!("Run 'ironmark --help' for usage.");
                 std::process::exit(2);
             }
             path => files.push(path.to_string()),
         }
         i += 1;
+    }
+
+    if !ansi_mode {
+        eprintln!("error: --ansi flag is required");
+        eprintln!("Run 'ironmark --help' for usage.");
+        std::process::exit(2);
     }
 
     // Resolve terminal width: explicit --width → $COLUMNS env var → tput cols → fallback 80

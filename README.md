@@ -138,23 +138,39 @@ await init(wasmUrl);
 const html = parse("# Hello\n\nThis is **fast**.");
 ```
 
-## CLI — `imcat`
+## CLI
 
-`imcat` renders Markdown files as coloured terminal output. It is built from the same ANSI renderer as `renderAnsi()`.
+Render Markdown as coloured terminal output. Two ways to install:
+
+### npm
 
 ```bash
-cargo install ironmark --bin imcat
+npx ironmark --ansi README.md
 ```
 
+Or install globally:
+
+```bash
+npm install -g ironmark
+ironmark --ansi README.md
+```
+
+### Rust
+
+Native binary — faster startup, auto-detects terminal width via `$COLUMNS` / `tput cols`.
+
+```bash
+cargo install ironmark --features cli
+ironmark --ansi README.md
+```
+
+### Options
+
+Both CLIs support the same flags (the npm CLI requires `--ansi` as the first flag):
+
 ```text
-USAGE:
-    imcat [OPTIONS] [FILE...]
-
-    When no FILE is given, reads from stdin. Use '-' for stdin explicitly.
-
 OPTIONS:
-    --width N            Terminal column width for word-wrap and heading underlines
-                         (default: auto-detect via $COLUMNS / tput cols, fallback 80)
+    --width N            Terminal column width (default: auto-detect, fallback 80)
     --no-color           Disable ANSI escape codes (plain text)
     -n, --line-numbers   Show line numbers in fenced code blocks
     --no-hard-breaks     Don't turn soft newlines into hard line breaks
@@ -166,16 +182,25 @@ OPTIONS:
     --no-task-lists      Disable - [x] task list syntax
     --math               Enable $inline$ and $$display$$ math
     --wiki-links         Enable [[wiki link]] syntax
-    --max-size N         Truncate input to N bytes (0 = unlimited)
+    --max-size N         Truncate input to N bytes (Rust only)
     -h, --help           Print this help and exit
     -V, --version        Print version and exit
+```
 
-EXAMPLES:
-    imcat README.md
-    imcat --width 120 README.md
-    imcat --no-color README.md | less
-    echo '# Hello' | imcat
-    cat doc.md | imcat --math --wiki-links
+### Examples
+
+```bash
+# npm
+npx ironmark --ansi README.md
+npx ironmark --ansi --width 120 README.md
+echo '# Hello' | npx ironmark --ansi
+npx ironmark --ansi --no-color README.md | less
+
+# Rust (after cargo install ironmark --features cli)
+ironmark --ansi README.md
+ironmark --ansi --width 120 README.md
+echo '# Hello' | ironmark --ansi
+cat doc.md | ironmark --ansi --math --wiki-links
 ```
 
 ## Rust

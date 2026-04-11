@@ -48,13 +48,13 @@ export function createParseToAst(wasmParseToAst) {
 }
 
 export function createRenderAnsi(wasmRenderAnsi) {
-  return function renderAnsi(markdown, options) {
+  return function renderAnsi(markdown, options, ansiOptions) {
     return wasmRenderAnsi(
       ...optionArgs(markdown, options),
       // width is plain u32 (not Option): 0 = use default (80)
-      options?.width ?? 0,
-      options?.color,
-      options?.lineNumbers,
+      ansiOptions?.width ?? 0,
+      ansiOptions?.color,
+      ansiOptions?.lineNumbers,
     );
   };
 }

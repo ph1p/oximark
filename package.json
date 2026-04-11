@@ -17,11 +17,15 @@
     "type": "git",
     "url": "https://github.com/ph1p/ironmark.git"
   },
+  "bin": {
+    "ironmark": "wasm/cli.js"
+  },
   "files": [
     "wasm/pkg",
     "wasm/shared.js",
     "wasm/web.js",
     "wasm/node.js",
+    "wasm/cli.js",
     "wasm/index.d.ts",
     "README.md"
   ],

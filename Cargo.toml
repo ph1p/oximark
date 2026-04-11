@@ -23,11 +23,17 @@ exclude = [
   "node_modules/*",
 ]
 
+[[bin]]
+name = "ironmark"
+path = "src/bin/ironmark.rs"
+required-features = ["cli"]
+
 [lib]
 crate-type = ["staticlib", "rlib"]
 
 [features]
 serde = ["dep:serde"]
+cli = []
 # Enable md4c as a benchmark competitor (requires system md4c: brew install md4c)
 bench-md4c = []
 
