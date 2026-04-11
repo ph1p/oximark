@@ -210,6 +210,7 @@ pub fn render_ansi(
         width: if width == 0 { 80 } else { width as usize },
         color: color.unwrap_or(true),
         line_numbers: line_numbers.unwrap_or(false),
+        ..AnsiOptions::default()
     };
     ironmark_render_ansi(markdown, &parse_opts, Some(&ansi_opts))
 }
