@@ -66,7 +66,6 @@ export function App() {
 
   useEffect(() => {
     if (appView !== "playground") return;
-    if (controllerRef.current) return;
 
     let cancelled = false;
 
@@ -97,25 +96,20 @@ export function App() {
           controller.attachEditorView(pendingEditorRef.current);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("initPlayground failed:", err);
         if (!cancelled) {
           setStatusText("failed to load wasm");
         }
       });
 
-    // Only cancel an in-flight init if the view changes before it resolves.
-    // The controller itself is kept alive across view switches.
     return () => {
       cancelled = true;
-    };
-  }, [appView]);
-
-  useEffect(() => {
-    return () => {
       controllerRef.current?.dispose();
       controllerRef.current = null;
     };
-  }, []);
+  }, [appView]);
+
 
   useEffect(() => {
     controllerRef.current?.setOutputTab(outputTab);
