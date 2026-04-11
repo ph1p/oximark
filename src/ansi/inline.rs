@@ -178,34 +178,35 @@ pub(super) fn html_to_ansi_inner(
                     if let Some(href_start) = tag.find("href=\"") {
                         let href_start = href_start + 6;
                         if let Some(href_end) = tag[href_start..].find('"')
-                            && let Some(close_off) = html[tag_end..].find("</a>") {
-                                let link_text = &html[tag_end..tag_end + close_off];
-                                let href = &tag[href_start..href_start + href_end];
+                            && let Some(close_off) = html[tag_end..].find("</a>")
+                        {
+                            let link_text = &html[tag_end..tag_end + close_off];
+                            let href = &tag[href_start..href_start + href_end];
 
-                                // OSC 8 clickable hyperlink (supported by most modern terminals)
-                                out.push_str("\x1b]8;;");
-                                out.push_str(href);
-                                out.push_str("\x1b\\");
-                                out.push_str(FG_LINK);
-                                out.push_str(UNDERLINE);
-                                html_to_ansi_inner(link_text, out, color, false, None);
+                            // OSC 8 clickable hyperlink (supported by most modern terminals)
+                            out.push_str("\x1b]8;;");
+                            out.push_str(href);
+                            out.push_str("\x1b\\");
+                            out.push_str(FG_LINK);
+                            out.push_str(UNDERLINE);
+                            html_to_ansi_inner(link_text, out, color, false, None);
+                            out.push_str(RESET);
+                            out.push_str("\x1b]8;;\x1b\\");
+
+                            // Show URL suffix only for non-anchor links
+                            if !href.starts_with('#') {
+                                out.push_str(FG_LINK_URL);
+                                out.push_str(" (");
+                                let mut decoded = String::with_capacity(href.len());
+                                html_to_ansi_inner(href, &mut decoded, false, false, None);
+                                out.push_str(&decoded);
+                                out.push(')');
                                 out.push_str(RESET);
-                                out.push_str("\x1b]8;;\x1b\\");
-
-                                // Show URL suffix only for non-anchor links
-                                if !href.starts_with('#') {
-                                    out.push_str(FG_LINK_URL);
-                                    out.push_str(" (");
-                                    let mut decoded = String::with_capacity(href.len());
-                                    html_to_ansi_inner(href, &mut decoded, false, false, None);
-                                    out.push_str(&decoded);
-                                    out.push(')');
-                                    out.push_str(RESET);
-                                }
-
-                                i = tag_end + close_off + 4;
-                                continue;
                             }
+
+                            i = tag_end + close_off + 4;
+                            continue;
+                        }
                     }
                 }
                 "</a>" => out.push_str(RESET),
@@ -228,21 +229,23 @@ pub(super) fn html_to_ansi_inner(
                     out.push_str(FG_IMAGE);
                     out.push('◈');
                     if let Some(alt_text) = alt
-                        && !alt_text.is_empty() {
-                            out.push(' ');
-                            out.push_str(alt_text);
-                        }
+                        && !alt_text.is_empty()
+                    {
+                        out.push(' ');
+                        out.push_str(alt_text);
+                    }
                     out.push_str(RESET);
 
                     // Show image source as dim URL (same treatment as links)
                     if let Some(src_url) = src
-                        && !src_url.is_empty() {
-                            out.push_str(FG_LINK_URL);
-                            out.push_str(" (");
-                            out.push_str(src_url);
-                            out.push(')');
-                            out.push_str(RESET);
-                        }
+                        && !src_url.is_empty()
+                    {
+                        out.push_str(FG_LINK_URL);
+                        out.push_str(" (");
+                        out.push_str(src_url);
+                        out.push(')');
+                        out.push_str(RESET);
+                    }
                 }
                 _ if tag.starts_with("<input ") => {
                     // Task list checkbox: use real Unicode symbols
