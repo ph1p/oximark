@@ -66,6 +66,7 @@ OPTIONS:
     --no-task-lists      Disable - [x] task list syntax
     --math               Enable $inline$ and $$display$$ math
     --wiki-links         Enable [[wiki link]] syntax
+    --padding N          Add horizontal padding to ANSI output
     --max-size N         Truncate input to N bytes (0 = unlimited)
     -h, --help           Print this help and exit
     -V, --version        Print version and exit
@@ -92,6 +93,7 @@ fn main() {
     let mut color = true;
     let mut line_numbers = false;
     let mut width: Option<usize> = None;
+    let mut padding: usize = 0;
     let mut parse_opts = ironmark::ParseOptions::default();
 
     let mut i = 0;
@@ -125,6 +127,14 @@ fn main() {
                 }
                 width = Some(parse_usize_arg("--width", &args[i]));
             }
+            "--padding" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --padding requires a value");
+                    std::process::exit(2);
+                }
+                padding = parse_usize_arg("--padding", &args[i]);
+            }
             "--max-size" => {
                 i += 1;
                 if i >= args.len() {
@@ -135,6 +145,9 @@ fn main() {
             }
             arg if arg.starts_with("--width=") => {
                 width = Some(parse_usize_arg("--width", &arg["--width=".len()..]));
+            }
+            arg if arg.starts_with("--padding=") => {
+                padding = parse_usize_arg("--padding", &arg["--padding=".len()..]);
             }
             arg if arg.starts_with("--max-size=") => {
                 parse_opts.max_input_size =
@@ -181,6 +194,7 @@ fn main() {
         width: resolved_width,
         color,
         line_numbers,
+        padding,
     };
 
     let mut input = String::new();

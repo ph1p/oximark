@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Project
 
-**ironmark** — a fast Markdown-to-HTML parser in Rust, fully CommonMark 0.31.2 compliant (652/652 spec tests). Published as both a Rust crate and an npm package (via WASM). Zero third-party parsing dependencies (only `memchr` and `rustc-hash`).
+**ironmark** — a fast Markdown-to-HTML parser in Rust, fully CommonMark 0.31.2 compliant (652/652 spec tests). Also includes an ANSI terminal renderer for coloured, formatted terminal output. Published as both a Rust crate and an npm package (via WASM). Zero third-party parsing dependencies (only `memchr` and `rustc-hash`).
 
 ## Commands
 
@@ -55,6 +55,17 @@ Two-phase pipeline: **block parsing → inline parsing → HTML rendering**.
 - Stack-based block renderer that calls inline parsing for leaf block content
 - Receives `&ParseOptions` to control extension behavior
 
+### ANSI terminal rendering (`src/ansi/`)
+
+- Coloured, formatted terminal output using ANSI escape codes
+- Suitable for `cat`-like tools or CLI help text
+- `mod.rs` — public `render_ansi()` entry point with `AnsiOptions`
+- `renderer.rs` — `AnsiRenderer` block-level renderer
+- `inline.rs` — HTML-to-ANSI tag translator, inline renderer
+- `wrap.rs` — text wrapping, visible length calculation, tab expansion helpers
+- `constants.rs` — ANSI 256-colour escape code constants
+- Features: configurable width, colour toggle, line numbers in code blocks, horizontal and vertical padding
+
 ### Supporting modules
 
 - `ast.rs` — AST node types (`Block` enum, `ListKind`, `TableData`, `TableAlignment`)
@@ -89,10 +100,11 @@ Two-phase pipeline: **block parsing → inline parsing → HTML rendering**.
 
 ## Key conventions
 
-- Two public entry points: `parse(markdown, &ParseOptions)` → HTML string, `parse_to_ast(markdown, &ParseOptions)` → `Vec<Block>`
+- Three public entry points: `parse(markdown, &ParseOptions)` → HTML string, `parse_to_ast(markdown, &ParseOptions)` → `Vec<Block>`, `render_ansi(markdown, &ParseOptions, &AnsiOptions)` → ANSI terminal string
 - Optional `serde` feature flag for AST serialization
 - Spec tests run with `hard_breaks: false` and `enable_autolink: false` to match CommonMark baseline
 - All extensions default to `true` (`hard_breaks`, `enable_highlight`, `enable_strikethrough`, `enable_underline`, `enable_tables`, `enable_autolink`, `enable_task_lists`)
+- ANSI options default to `width: 80`, `color: true`, `line_numbers: false`, `padding: 0`
 - Security options: `disable_raw_html` (escapes HTML), `max_nesting_depth` (default 128), `max_input_size` (default 0 = unlimited)
 - Dangerous URIs (`javascript:`, `vbscript:`, `data:` except `data:image/…`) always stripped regardless of options
 - Extension delimiters (`~~`, `==`, `++`) use `tag_size` encoding: 1=em, 2=strong, 3=del, 4=mark, 5=u

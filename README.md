@@ -103,17 +103,22 @@ const ansi = renderAnsi(
 );
 process.stdout.write(ansi);
 
+// With padding — adds horizontal spacing on both sides
+const ansi = renderAnsi("# Hello\n\n> A quote", {}, { padding: 2 });
+process.stdout.write(ansi);
+
 // Plain text — strips all ANSI codes (useful for piping to files)
 const plain = renderAnsi("# Hello\n\n> quote", {}, { color: false });
 ````
 
 #### ANSI options
 
-| Option        | Type      | Default | Description                                                                     |
-| ------------- | --------- | ------- | ------------------------------------------------------------------------------- |
-| `width`       | `number`  | `80`    | Column width for word-wrap, heading underlines, rule length. `0` = use default. |
-| `color`       | `boolean` | `true`  | Emit ANSI colour codes. `false` = plain text output.                            |
-| `lineNumbers` | `boolean` | `false` | Show line numbers in fenced code blocks.                                        |
+| Option        | Type      | Default | Description                                                                                   |
+| ------------- | --------- | ------- | --------------------------------------------------------------------------------------------- |
+| `width`       | `number`  | `80`    | Column width for word-wrap, heading underlines, rule length. `0` = use default.               |
+| `color`       | `boolean` | `true`  | Emit ANSI colour codes. `false` = plain text output.                                          |
+| `lineNumbers` | `boolean` | `false` | Show line numbers in fenced code blocks.                                                      |
+| `padding`     | `number`  | `0`     | Horizontal padding added to both sides of each line, plus ⌈padding/2⌉ blank lines at the top. |
 
 ### Browser / Bundler
 
@@ -171,6 +176,7 @@ Both CLIs support the same flags (the npm CLI requires `--ansi` as the first fla
 ```text
 OPTIONS:
     --width N            Terminal column width (default: auto-detect, fallback 80)
+    --padding N          Horizontal padding added to both sides of each line, plus ceil(padding/2) blank lines at the top (default: 0)
     --no-color           Disable ANSI escape codes (plain text)
     -n, --line-numbers   Show line numbers in fenced code blocks
     --no-hard-breaks     Don't turn soft newlines into hard line breaks
@@ -278,6 +284,14 @@ fn main() {
     );
     print!("{out}");
 
+    // With padding — adds horizontal spacing on both sides
+    let out = render_ansi(
+        "# Hello\n\n> A quote",
+        &ParseOptions::default(),
+        Some(&AnsiOptions { padding: 2, ..AnsiOptions::default() }),
+    );
+    print!("{out}");
+
     // Plain text — no ANSI codes (e.g. for writing to a file)
     let plain = render_ansi(
         "# Hello",
@@ -289,11 +303,12 @@ fn main() {
 
 `AnsiOptions` fields:
 
-| Field          | Type    | Default | Description                                                                 |
-| -------------- | ------- | ------- | --------------------------------------------------------------------------- |
-| `width`        | `usize` | `80`    | Column width for word-wrap, heading underlines, rule length. `0` = disable. |
-| `color`        | `bool`  | `true`  | Emit ANSI 256-colour escape codes.                                          |
-| `line_numbers` | `bool`  | `false` | Show line numbers in fenced code blocks.                                    |
+| Field          | Type    | Default | Description                                                                                   |
+| -------------- | ------- | ------- | --------------------------------------------------------------------------------------------- |
+| `width`        | `usize` | `80`    | Column width for word-wrap, heading underlines, rule length. `0` = disable.                   |
+| `color`        | `bool`  | `true`  | Emit ANSI 256-colour escape codes.                                                            |
+| `line_numbers` | `bool`  | `false` | Show line numbers in fenced code blocks.                                                      |
+| `padding`      | `usize` | `0`     | Horizontal padding added to both sides of each line, plus ⌈padding/2⌉ blank lines at the top. |
 
 ## C / C++
 

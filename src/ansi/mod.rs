@@ -77,6 +77,14 @@ pub struct AnsiOptions {
     /// a dim border colour with a `│` separator before the code content.
     /// Default: `false`.
     pub line_numbers: bool,
+
+    /// Horizontal padding to add on both sides of every output line.
+    ///
+    /// The output width remains `width`; padding reduces the available text
+    /// width and inserts symmetric left/right spaces on each rendered line.
+    /// Also adds `padding.div_ceil(2)` blank lines at the top of the output.
+    /// Default: `0`.
+    pub padding: usize,
 }
 
 impl Default for AnsiOptions {
@@ -85,6 +93,7 @@ impl Default for AnsiOptions {
             width: 80,
             color: true,
             line_numbers: false,
+            padding: 0,
         }
     }
 }
@@ -153,5 +162,44 @@ pub fn render_ansi(markdown: &str, options: &ParseOptions, aopts: Option<&AnsiOp
         prev_was_heading: false,
     };
     renderer.render_block(&doc);
+
+    if aopts.padding > 0 {
+        pad_ansi_output(out, aopts.padding)
+    } else {
+        out
+    }
+}
+
+fn pad_ansi_output(text: String, padding: usize) -> String {
+    if padding == 0 || text.is_empty() {
+        return text;
+    }
+
+    let pad = " ".repeat(padding);
+
+    // Rough capacity: original text + ~2*padding per ~60-char line + top padding newlines
+    let estimated_lines = text.len() / 60 + 1;
+    let top_padding_lines = padding.div_ceil(2);
+    let mut out =
+        String::with_capacity(text.len() + padding * 2 * estimated_lines + top_padding_lines);
+
+    // Vertical top padding uses fewer lines than horizontal padding
+    // since vertical space feels more prominent than horizontal space
+    for _ in 0..top_padding_lines {
+        out.push('\n');
+    }
+
+    for segment in text.split_inclusive('\n') {
+        let (line, has_newline) = match segment.strip_suffix('\n') {
+            Some(stripped) => (stripped, true),
+            None => (segment, false),
+        };
+        out.push_str(&pad);
+        out.push_str(line);
+        out.push_str(&pad);
+        if has_newline {
+            out.push('\n');
+        }
+    }
     out
 }

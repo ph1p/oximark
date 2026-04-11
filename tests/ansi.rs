@@ -183,6 +183,36 @@ fn line_numbers_absent_by_default() {
     assert_ne!(with_nums, without_nums);
 }
 
+#[test]
+fn padding_adds_horizontal_spaces_to_each_line() {
+    let long = "word ".repeat(25);
+    let out = render_ansi(
+        long.trim(),
+        &opts(),
+        Some(&AnsiOptions {
+            color: false,
+            width: 20,
+            padding: 2,
+            ..AnsiOptions::default()
+        }),
+    );
+
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(lines.len() > 1, "expected wrapping with padding");
+
+    // Skip blank lines at the top (top padding)
+    let content_lines: Vec<&str> = lines
+        .into_iter()
+        .skip_while(|line| line.trim().is_empty())
+        .collect();
+
+    for line in &content_lines {
+        assert!(line.starts_with("  "), "expected left padding: {line:?}");
+        assert!(line.ends_with("  "), "expected right padding: {line:?}");
+        assert!(line.len() <= 24, "line too long: {}", line.len());
+    }
+}
+
 // ── width / wrap ──────────────────────────────────────────────────────────────
 
 #[test]
