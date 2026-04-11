@@ -166,17 +166,13 @@ fn main() {
             return w;
         }
         // Last resort: ask tput (only works when a TTY is attached)
-        if let Ok(out) = std::process::Command::new("tput").arg("cols").output() {
-            if out.status.success() {
-                if let Ok(s) = std::str::from_utf8(&out.stdout) {
-                    if let Ok(n) = s.trim().parse::<usize>() {
-                        if n > 0 {
+        if let Ok(out) = std::process::Command::new("tput").arg("cols").output()
+            && out.status.success()
+                && let Ok(s) = std::str::from_utf8(&out.stdout)
+                    && let Ok(n) = s.trim().parse::<usize>()
+                        && n > 0 {
                             return n;
                         }
-                    }
-                }
-            }
-        }
         80
     });
 

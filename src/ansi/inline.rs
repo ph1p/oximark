@@ -177,8 +177,8 @@ pub(super) fn html_to_ansi_inner(
                 _ if tag.starts_with("<a href=") => {
                     if let Some(href_start) = tag.find("href=\"") {
                         let href_start = href_start + 6;
-                        if let Some(href_end) = tag[href_start..].find('"') {
-                            if let Some(close_off) = html[tag_end..].find("</a>") {
+                        if let Some(href_end) = tag[href_start..].find('"')
+                            && let Some(close_off) = html[tag_end..].find("</a>") {
                                 let link_text = &html[tag_end..tag_end + close_off];
                                 let href = &tag[href_start..href_start + href_end];
 
@@ -206,7 +206,6 @@ pub(super) fn html_to_ansi_inner(
                                 i = tag_end + close_off + 4;
                                 continue;
                             }
-                        }
                     }
                 }
                 "</a>" => out.push_str(RESET),
@@ -227,25 +226,23 @@ pub(super) fn html_to_ansi_inner(
                     });
 
                     out.push_str(FG_IMAGE);
-                    out.push_str("◈");
-                    if let Some(alt_text) = alt {
-                        if !alt_text.is_empty() {
+                    out.push('◈');
+                    if let Some(alt_text) = alt
+                        && !alt_text.is_empty() {
                             out.push(' ');
                             out.push_str(alt_text);
                         }
-                    }
                     out.push_str(RESET);
 
                     // Show image source as dim URL (same treatment as links)
-                    if let Some(src_url) = src {
-                        if !src_url.is_empty() {
+                    if let Some(src_url) = src
+                        && !src_url.is_empty() {
                             out.push_str(FG_LINK_URL);
                             out.push_str(" (");
                             out.push_str(src_url);
                             out.push(')');
                             out.push_str(RESET);
                         }
-                    }
                 }
                 _ if tag.starts_with("<input ") => {
                     // Task list checkbox: use real Unicode symbols

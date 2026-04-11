@@ -495,10 +495,10 @@ impl<'a> AnsiRenderer<'a> {
         }
         let row_count = table.rows.len() / ncols;
         for row in 0..row_count {
-            for c in 0..ncols {
+            for (c, col_width) in col_widths.iter_mut().enumerate().take(ncols) {
                 let idx = row * ncols + c;
                 if idx < table.rows.len() {
-                    col_widths[c] = col_widths[c].max(measure(
+                    *col_width = *col_width.max(&mut measure(
                         &table.rows[idx],
                         self.refs,
                         self.opts,
