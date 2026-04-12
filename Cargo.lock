@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "ironmark"
-version = "1.11.3"
+version = "1.11.4"
 dependencies = [
  "compact_str",
  "comrak",
