@@ -8,6 +8,8 @@ type HeaderProps = {
 
 const NAV: { label: string; view: AppView; hash: string }[] = [
   { label: "Editor", view: "playground", hash: "#" },
+  { label: "AST to MD", view: "ast-to-md", hash: "#ast-to-md" },
+  { label: "HTML to MD", view: "html-to-md", hash: "#html-to-md" },
   { label: "Benchmarks", view: "benchmarks", hash: "#benchmark" },
 ];
 

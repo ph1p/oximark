@@ -118,3 +118,69 @@ export declare function renderAnsi(
   options?: ParseOptions,
   ansiOptions?: AnsiOptions,
 ): string;
+
+/**
+ * Options for HTML-to-Markdown parsing.
+ */
+export interface HtmlParseOptions {
+  /**
+   * If true, unknown HTML tags (like `<sup>`, `<sub>`, `<abbr>`) are preserved
+   * as raw HTML in the Markdown output. If false (default), unknown tags are
+   * stripped but their text content is kept.
+   */
+  preserveUnknownAsHtml?: boolean;
+}
+
+/**
+ * Parse an HTML string and return the AST as a JSON string.
+ *
+ * This converts HTML back into the same AST structure used by the Markdown parser,
+ * enabling HTML-to-Markdown conversion.
+ *
+ * @param html - HTML source string.
+ * @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML.
+ * @returns JSON string representing the AST.
+ *
+ * @example
+ * ```ts
+ * import { parseHtmlToAst } from "ironmark";
+ * const ast = parseHtmlToAst("<h1>Hello</h1><p>World</p>");
+ * console.log(JSON.parse(ast));
+ * ```
+ */
+export declare function parseHtmlToAst(html: string, preserveUnknownAsHtml?: boolean): string;
+
+/**
+ * Convert HTML to Markdown.
+ *
+ * This parses HTML and renders it as Markdown syntax.
+ *
+ * @param html - HTML source string.
+ * @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML in output.
+ * @returns Markdown string.
+ *
+ * @example
+ * ```ts
+ * import { htmlToMarkdown } from "ironmark";
+ * const md = htmlToMarkdown("<p><strong>Bold</strong> text</p>");
+ * // Returns: "**Bold** text"
+ * ```
+ */
+export declare function htmlToMarkdown(html: string, preserveUnknownAsHtml?: boolean): string;
+
+/**
+ * Render an AST (as JSON) to Markdown.
+ *
+ * This takes a JSON string representing an ironmark AST and renders it as Markdown.
+ *
+ * @param astJson - JSON string representing the AST (as returned by `parseToAst` or `parseHtmlToAst`).
+ * @returns Markdown string.
+ *
+ * @example
+ * ```ts
+ * import { parseToAst, renderMarkdown } from "ironmark";
+ * const ast = parseToAst("# Hello\n\n**World**");
+ * const md = renderMarkdown(ast);
+ * ```
+ */
+export declare function renderMarkdown(astJson: string): string;

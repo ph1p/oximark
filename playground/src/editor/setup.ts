@@ -7,7 +7,7 @@ import { cmThemeExtension } from "./theme";
 
 export const htmlThemeCompartment = new Compartment();
 
-const baseTheme = EditorView.theme({
+export const baseTheme = EditorView.theme({
   "&": { height: "100%", fontSize: "0.875rem" },
   ".cm-scroller": {
     fontFamily: '"JetBrains Mono", ui-monospace, monospace',
@@ -22,7 +22,7 @@ const baseTheme = EditorView.theme({
   },
 });
 
-const readonlyTheme = EditorView.theme({
+export const readonlyTheme = EditorView.theme({
   ".cm-cursor": { display: "none !important" },
 });
 

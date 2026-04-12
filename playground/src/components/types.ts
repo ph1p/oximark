@@ -1,6 +1,6 @@
 export type OutputTab = "preview" | "html" | "ast";
 export type MobilePanel = "editor" | OutputTab;
-export type AppView = "playground" | "benchmarks";
+export type AppView = "playground" | "benchmarks" | "ast-to-md" | "html-to-md";
 
 export type BenchResult = { median_ns: number; mean_ns?: number; p95_ns?: number };
 export type BenchEntry = { name: string; bytes: number; results: Record<string, BenchResult> };

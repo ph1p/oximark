@@ -32,10 +32,27 @@ required-features = ["cli"]
 crate-type = ["staticlib", "rlib"]
 
 [features]
+# All rendering features enabled by default (additive model)
+# Users can disable features to reduce binary size:
+#   cargo build --no-default-features --features html
+default = ["html", "ansi", "html-parser"]
+
+# Core serialization support for AST
 serde = ["dep:serde"]
+
+# CLI binary
 cli = []
+
 # Enable md4c as a benchmark competitor (requires system md4c: brew install md4c)
 bench-md4c = []
+
+# Rendering targets (can be disabled to reduce binary size)
+# markdown -> HTML rendering
+html = []
+# markdown -> ANSI terminal rendering
+ansi = []
+# HTML -> AST -> markdown (reverse direction)
+html-parser = []
 
 [dependencies]
 compact_str = { version = "0.8", features = ["serde"] }

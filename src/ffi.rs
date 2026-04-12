@@ -1,6 +1,8 @@
 use std::ffi::{CStr, CString, c_char};
 
-use crate::{ParseOptions, parse};
+use crate::ParseOptions;
+#[cfg(feature = "html")]
+use crate::parse;
 
 /// Parse markdown input and return a heap-allocated HTML string.
 ///
@@ -10,6 +12,7 @@ use crate::{ParseOptions, parse};
 /// # Safety
 ///
 /// `input` must be a valid, null-terminated C string.
+#[cfg(feature = "html")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ironmark_parse(input: *const c_char) -> *mut c_char {
     if input.is_null() {

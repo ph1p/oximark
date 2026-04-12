@@ -59,3 +59,21 @@ export function createRenderAnsi(wasmRenderAnsi) {
     );
   };
 }
+
+export function createParseHtmlToAst(wasmParseHtmlToAst) {
+  return function parseHtmlToAst(html, preserveUnknownAsHtml) {
+    return wasmParseHtmlToAst(html, preserveUnknownAsHtml);
+  };
+}
+
+export function createHtmlToMarkdown(wasmHtmlToMarkdown) {
+  return function htmlToMarkdown(html, preserveUnknownAsHtml) {
+    return wasmHtmlToMarkdown(html, preserveUnknownAsHtml);
+  };
+}
+
+export function createRenderMarkdown(wasmRenderMarkdown) {
+  return function renderMarkdown(astJson) {
+    return wasmRenderMarkdown(astJson);
+  };
+}

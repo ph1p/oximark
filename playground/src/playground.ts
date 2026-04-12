@@ -124,6 +124,8 @@ export type PlaygroundController = {
   updateMarkdown: (markdown: string) => void;
   updateOptions: (options: ParseOptions) => void;
   attachEditorView: (editorView: EditorView) => void;
+  getHtml: () => string;
+  getAst: () => string;
   dispose: () => void;
 };
 
@@ -234,6 +236,8 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       editorView = view;
       editorView.focus();
     },
+    getHtml: () => formatHtml(htmlState.lastHtml),
+    getAst: () => htmlState.lastAst,
     dispose: () => {
       unsubscribeTheme();
       cancelAnimationFrame(highlightRaf);

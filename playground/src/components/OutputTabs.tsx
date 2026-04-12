@@ -1,17 +1,28 @@
 import { ACTIVE_TAB, INACTIVE_TAB, OUTPUT_TAB_LABELS } from "./tabs";
 import type { OutputTab } from "./types";
+import { CopyButton } from "./CopyButton";
 
 type OutputTabsProps = {
   outputTab: OutputTab;
   onChange: (tab: OutputTab) => void;
+  getHtml?: () => string;
+  getAst?: () => string;
 };
 
-export function OutputTabs({ outputTab, onChange }: OutputTabsProps) {
+export function OutputTabs({ outputTab, onChange, getHtml, getAst }: OutputTabsProps) {
+  const getCopyGetter = () => {
+    if (outputTab === "html" && getHtml) return getHtml;
+    if (outputTab === "ast" && getAst) return getAst;
+    return null;
+  };
+
+  const copyGetter = getCopyGetter();
+
   return (
     <div
       role="tablist"
       aria-label="Output view tabs"
-      className="hidden md:flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50"
+      className="hidden md:flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 items-center"
     >
       <button
         id="tab-preview"
@@ -46,6 +57,8 @@ export function OutputTabs({ outputTab, onChange }: OutputTabsProps) {
       >
         {OUTPUT_TAB_LABELS.ast}
       </button>
+      <div className="flex-1" />
+      {copyGetter && <CopyButton getText={copyGetter} className="mr-2" />}
     </div>
   );
 }

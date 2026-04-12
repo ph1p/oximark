@@ -4,6 +4,8 @@ import { Header } from "./components/Header";
 import { MobileTabs } from "./components/MobileTabs";
 import { SplitPanels } from "./components/SplitPanels";
 import { BenchmarkPage } from "./components/BenchmarkPage";
+import { AstToMarkdownPage } from "./components/AstToMarkdownPage";
+import { HtmlToMarkdownPage } from "./components/HtmlToMarkdownPage";
 import { DEFAULT_MARKDOWN, initPlayground, type PlaygroundController } from "./playground";
 import type { AppView, MobilePanel, OutputTab, ParseOptions } from "./components/types";
 import { DEFAULT_PARSE_OPTIONS } from "./components/types";
@@ -37,7 +39,11 @@ function readOptions(): ParseOptions {
 }
 
 function readAppView(): AppView {
-  return location.hash === "#benchmark" ? "benchmarks" : "playground";
+  const hash = location.hash;
+  if (hash === "#benchmark") return "benchmarks";
+  if (hash === "#ast-to-md") return "ast-to-md";
+  if (hash === "#html-to-md") return "html-to-md";
+  return "playground";
 }
 
 export function App() {
@@ -147,30 +153,43 @@ export function App() {
     controllerRef.current?.updateMarkdown(value);
   };
 
+  const renderContent = () => {
+    switch (appView) {
+      case "benchmarks":
+        return <BenchmarkPage />;
+      case "ast-to-md":
+        return <AstToMarkdownPage />;
+      case "html-to-md":
+        return <HtmlToMarkdownPage />;
+      default:
+        return (
+          <>
+            <MobileTabs panel={mobilePanel} onChange={onMobilePanelChange} />
+            <SplitPanels
+              mobilePanel={mobilePanel}
+              outputTab={outputTab}
+              onOutputTabChange={setOutputTab}
+              markdown={markdown}
+              onMarkdownValueChange={setMarkdown}
+              onMarkdownDocChange={onMarkdownDocChange}
+              onEditorReady={onEditorReady}
+              options={options}
+              onOptionsChange={setOptions}
+              previewRef={previewRef}
+              htmlSourceContainerRef={htmlSourceContainerRef}
+              astSourceContainerRef={astSourceContainerRef}
+              getHtml={() => controllerRef.current?.getHtml() ?? ""}
+              getAst={() => controllerRef.current?.getAst() ?? ""}
+            />
+          </>
+        );
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
       <Header statusText={statusText} currentView={appView} />
-      {appView === "benchmarks" ? (
-        <BenchmarkPage />
-      ) : (
-        <>
-          <MobileTabs panel={mobilePanel} onChange={onMobilePanelChange} />
-          <SplitPanels
-            mobilePanel={mobilePanel}
-            outputTab={outputTab}
-            onOutputTabChange={setOutputTab}
-            markdown={markdown}
-            onMarkdownValueChange={setMarkdown}
-            onMarkdownDocChange={onMarkdownDocChange}
-            onEditorReady={onEditorReady}
-            options={options}
-            onOptionsChange={setOptions}
-            previewRef={previewRef}
-            htmlSourceContainerRef={htmlSourceContainerRef}
-            astSourceContainerRef={astSourceContainerRef}
-          />
-        </>
-      )}
+      {renderContent()}
     </div>
   );
 }

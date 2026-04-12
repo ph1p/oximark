@@ -1,6 +1,8 @@
 use ironmark::{
-    AnsiOptions, ParseOptions, parse as ironmark_parse, parse_to_ast as ironmark_parse_to_ast,
-    render_ansi as ironmark_render_ansi,
+    AnsiOptions, Block, HtmlParseOptions, ParseOptions, UnknownInlineHandling,
+    html_to_markdown as ironmark_html_to_markdown, parse as ironmark_parse,
+    parse_html_to_ast as ironmark_parse_html_to_ast, parse_to_ast as ironmark_parse_to_ast,
+    render_ansi as ironmark_render_ansi, render_markdown as ironmark_render_markdown,
 };
 use wasm_bindgen::prelude::*;
 
@@ -214,4 +216,61 @@ pub fn render_ansi(
         padding: padding as usize,
     };
     ironmark_render_ansi(markdown, &parse_opts, Some(&ansi_opts))
+}
+
+fn build_html_parse_options(preserve_unknown_as_html: Option<bool>) -> HtmlParseOptions {
+    HtmlParseOptions {
+        max_nesting_depth: 128,
+        unknown_inline_handling: if preserve_unknown_as_html.unwrap_or(false) {
+            UnknownInlineHandling::PreserveAsHtml
+        } else {
+            UnknownInlineHandling::StripTags
+        },
+        max_input_size: WASM_MAX_INPUT_SIZE,
+    }
+}
+
+/// Parse an HTML string and return the AST as JSON.
+///
+/// This converts HTML back into the same AST structure used by the Markdown parser,
+/// enabling HTML-to-Markdown conversion.
+///
+/// @param html - HTML source string.
+/// @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML.
+///                                If false (default), unknown tags are stripped but text is kept.
+/// @returns JSON string representing the AST.
+#[wasm_bindgen(js_name = "parseHtmlToAst")]
+pub fn parse_html_to_ast(
+    html: &str,
+    preserve_unknown_as_html: Option<bool>,
+) -> Result<String, JsValue> {
+    let ast = ironmark_parse_html_to_ast(html, &build_html_parse_options(preserve_unknown_as_html));
+    serde_json::to_string(&ast)
+        .map_err(|err| JsValue::from_str(&format!("AST serialization failed: {err}")))
+}
+
+/// Convert HTML to Markdown.
+///
+/// This parses HTML and renders it as Markdown syntax.
+///
+/// @param html - HTML source string.
+/// @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML in output.
+///                                If false (default), unknown tags are stripped but text is kept.
+/// @returns Markdown string.
+#[wasm_bindgen(js_name = "htmlToMarkdown")]
+pub fn html_to_markdown(html: &str, preserve_unknown_as_html: Option<bool>) -> String {
+    ironmark_html_to_markdown(html, &build_html_parse_options(preserve_unknown_as_html))
+}
+
+/// Render an AST (as JSON) to Markdown.
+///
+/// This takes a JSON string representing an ironmark AST and renders it as Markdown.
+///
+/// @param astJson - JSON string representing the AST (as returned by `parseToAst` or `parseHtmlToAst`).
+/// @returns Markdown string.
+#[wasm_bindgen(js_name = "renderMarkdown")]
+pub fn render_markdown(ast_json: &str) -> Result<String, JsValue> {
+    let ast: Block = serde_json::from_str(ast_json)
+        .map_err(|err| JsValue::from_str(&format!("Invalid AST JSON: {err}")))?;
+    Ok(ironmark_render_markdown(&ast))
 }

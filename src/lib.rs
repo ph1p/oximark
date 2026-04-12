@@ -65,18 +65,39 @@
 //! | `# heading` with anchor | `<h1>… <a class="anchor">` | [`enable_heading_anchors`](ParseOptions::enable_heading_anchors) |
 //! | `#Heading` (no space) | `<h1>` | [`permissive_atx_headers`](ParseOptions::permissive_atx_headers) |
 
-mod ansi;
+// Core modules (always compiled)
 pub mod ast;
 mod block;
 mod entities;
-pub mod ffi;
 mod html;
 mod inline;
+mod renderers;
+
+// Feature-gated modules
+#[cfg(feature = "ansi")]
+mod ansi;
+#[cfg(feature = "html-parser")]
+mod html_parser;
+#[cfg(feature = "html")]
 mod render;
 
-pub use ansi::{AnsiOptions, render_ansi};
+// FFI module (always available for C bindings)
+pub mod ffi;
+
+// Core exports (always available)
 pub use ast::{Block, ListKind, TableAlignment, TableData};
-pub use block::{parse, parse_to_ast};
+pub use block::parse_to_ast;
+pub use renderers::markdown::render_markdown;
+
+// Feature-gated exports
+#[cfg(feature = "ansi")]
+pub use ansi::{AnsiOptions, render_ansi};
+#[cfg(feature = "html")]
+pub use block::parse;
+#[cfg(feature = "html-parser")]
+pub use html_parser::{
+    HtmlParseOptions, UnknownInlineHandling, html_to_markdown, parse_html_to_ast,
+};
 
 #[inline(always)]
 pub(crate) fn is_ascii_punctuation(b: u8) -> bool {

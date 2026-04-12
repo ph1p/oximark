@@ -3,6 +3,7 @@ import { OutputTabs } from "./OutputTabs";
 import { OptionsPanel } from "./OptionsPanel";
 import type { MobilePanel, OutputTab, ParseOptions } from "./types";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { CopyButton } from "./CopyButton";
 import type { EditorView } from "@codemirror/view";
 
 type SplitPanelsProps = {
@@ -18,6 +19,8 @@ type SplitPanelsProps = {
   previewRef: RefObject<HTMLDivElement | null>;
   htmlSourceContainerRef: RefObject<HTMLDivElement | null>;
   astSourceContainerRef: RefObject<HTMLDivElement | null>;
+  getHtml?: () => string;
+  getAst?: () => string;
 };
 
 export function SplitPanels({
@@ -33,6 +36,8 @@ export function SplitPanels({
   previewRef,
   htmlSourceContainerRef,
   astSourceContainerRef,
+  getHtml,
+  getAst,
 }: SplitPanelsProps) {
   const showEditor = mobilePanel === "editor";
 
@@ -42,8 +47,9 @@ export function SplitPanels({
         id="panel-editor"
         className={`${showEditor ? "flex" : "hidden"} md:flex flex-1 md:flex-[0_0_50%] md:min-w-0 flex-col md:border-r border-zinc-200 dark:border-zinc-800 min-h-0`}
       >
-        <div className="hidden md:block px-4 pt-2.5 pb-2 text-xs font-medium text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
-          Markdown
+        <div className="hidden md:flex px-4 pt-2.5 pb-2 text-xs font-medium text-zinc-400 uppercase tracking-wider border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 items-center justify-between">
+          <span>Markdown</span>
+          <CopyButton getText={() => markdown} />
         </div>
         <OptionsPanel options={options} onChange={onOptionsChange} />
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -59,7 +65,12 @@ export function SplitPanels({
         id="panel-output"
         className={`${showEditor ? "hidden" : "flex"} md:flex md:flex-[0_0_50%] md:min-w-0 flex-1 flex-col min-h-0`}
       >
-        <OutputTabs outputTab={outputTab} onChange={onOutputTabChange} />
+        <OutputTabs
+          outputTab={outputTab}
+          onChange={onOutputTabChange}
+          getHtml={getHtml}
+          getAst={getAst}
+        />
         <div
           id="panel-preview"
           role="tabpanel"

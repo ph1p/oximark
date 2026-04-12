@@ -84,6 +84,42 @@ const ast = JSON.parse(astJson);
 
 `parseToAst()` returns a JSON string for portability across JS runtimes and WASM boundaries.
 
+### HTML to Markdown
+
+Convert HTML back to Markdown syntax using `htmlToMarkdown()`. Useful for importing content from HTML sources or round-trip conversion.
+
+```ts
+import { htmlToMarkdown } from "ironmark";
+
+const md = htmlToMarkdown("<h1>Hello</h1><p><strong>Bold</strong> text</p>");
+// Returns: "# Hello\n\n**Bold** text"
+
+// Preserve unknown HTML tags (e.g., <sup>, <sub>) as raw HTML in output
+const md = htmlToMarkdown("<p>H<sub>2</sub>O</p>", true);
+// Returns: "H<sub>2</sub>O"
+```
+
+For AST access, use `parseHtmlToAst()`:
+
+```ts
+import { parseHtmlToAst } from "ironmark";
+
+const astJson = parseHtmlToAst("<h1>Hello</h1><p>World</p>");
+const ast = JSON.parse(astJson);
+```
+
+### AST to Markdown
+
+Render an AST back to Markdown syntax using `renderMarkdown()`. Combined with `parseToAst()` or `parseHtmlToAst()`, this enables round-trip conversion.
+
+```ts
+import { parseToAst, renderMarkdown } from "ironmark";
+
+const ast = parseToAst("# Hello\n\n**World**");
+const md = renderMarkdown(ast);
+// Returns: "# Hello\n\n**World**"
+```
+
 ### ANSI Terminal Output
 
 Use `renderAnsi()` to render Markdown as coloured terminal output (ANSI 256-colour escape codes). Useful for CLI tools, terminal UIs, or any environment with a TTY.
@@ -263,6 +299,69 @@ Exported AST types:
 - `ListKind`
 - `TableData`
 - `TableAlignment`
+
+### HTML to Markdown
+
+Convert HTML back to Markdown syntax:
+
+```rust
+use ironmark::{html_to_markdown, HtmlParseOptions};
+
+fn main() {
+    let md = html_to_markdown(
+        "<h1>Hello</h1><p><strong>Bold</strong> text</p>",
+        &HtmlParseOptions::default(),
+    );
+    // Returns: "# Hello\n\n**Bold** text"
+}
+```
+
+For AST access, use `parse_html_to_ast()`:
+
+```rust
+use ironmark::{parse_html_to_ast, HtmlParseOptions, UnknownInlineHandling};
+
+fn main() {
+    // Default: strip unknown tags, keep text content
+    let ast = parse_html_to_ast("<p>H<sub>2</sub>O</p>", &HtmlParseOptions::default());
+
+    // Preserve unknown tags as raw HTML
+    let ast = parse_html_to_ast(
+        "<p>H<sub>2</sub>O</p>",
+        &HtmlParseOptions {
+            unknown_inline_handling: UnknownInlineHandling::PreserveAsHtml,
+            ..Default::default()
+        },
+    );
+}
+```
+
+`HtmlParseOptions` fields:
+
+| Field                     | Type                    | Default     | Description                           |
+| ------------------------- | ----------------------- | ----------- | ------------------------------------- |
+| `max_nesting_depth`       | `usize`                 | `128`       | Limit nesting depth (DoS prevention)  |
+| `unknown_inline_handling` | `UnknownInlineHandling` | `StripTags` | How to handle unknown HTML tags       |
+| `max_input_size`          | `usize`                 | `0`         | Truncate input beyond this byte count |
+
+`UnknownInlineHandling` variants:
+
+- `StripTags` — Remove unknown tags, keep text content (default)
+- `PreserveAsHtml` — Keep unknown tags as raw HTML in output
+
+### AST to Markdown
+
+Render an AST back to Markdown syntax:
+
+```rust
+use ironmark::{parse_to_ast, render_markdown, ParseOptions};
+
+fn main() {
+    let ast = parse_to_ast("# Hello\n\n**World**", &ParseOptions::default());
+    let md = render_markdown(&ast);
+    // Returns: "# Hello\n\n**World**"
+}
+```
 
 ### ANSI Terminal Output
 

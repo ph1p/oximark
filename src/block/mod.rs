@@ -11,11 +11,15 @@ use crate::ParseOptions;
 use crate::ast::{Block, ListKind, TableAlignment};
 use crate::entities;
 use crate::html::trim_cr;
-use crate::inline::{InlineBuffers, LinkRefMap};
-use crate::render::render_block;
 use compact_str::CompactString;
 use smallvec::SmallVec;
 use std::borrow::Cow;
+
+#[cfg(feature = "html")]
+use crate::inline::InlineBuffers;
+use crate::inline::LinkRefMap;
+#[cfg(feature = "html")]
+use crate::render::render_block;
 
 /// Parse a Markdown string and return the rendered HTML.
 ///
@@ -27,6 +31,7 @@ use std::borrow::Cow;
 /// let html = parse("**bold** and *italic*", &ParseOptions::default());
 /// assert!(html.contains("<strong>bold</strong>"));
 /// ```
+#[cfg(feature = "html")]
 pub fn parse(markdown: &str, options: &ParseOptions) -> String {
     let markdown = if options.max_input_size > 0 && markdown.len() > options.max_input_size {
         // Truncate at a valid UTF-8 boundary
