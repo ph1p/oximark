@@ -1,6 +1,6 @@
 {
   "name": "ironmark",
-  "version": "1.11.4",
+  "version": "1.12.0",
   "description": "Very fast markdown parser in Rust, consumable from JavaScript/TypeScript via WebAssembly",
   "keywords": [
     "markdown",

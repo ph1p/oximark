@@ -1,6 +1,6 @@
 [package]
 name = "ironmark"
-version = "1.11.4"
+version = "1.12.0"
 edition = "2024"
 description = "Fast Markdown to HTML parser written in Rust with WebAssembly bindings"
 license = "MIT"
