@@ -2,32 +2,46 @@
 
 [![CI](https://github.com/ph1p/ironmark/actions/workflows/ci.yml/badge.svg)](https://github.com/ph1p/ironmark/actions/workflows/ci.yml) [![npm](https://img.shields.io/npm/v/ironmark)](https://www.npmjs.com/package/ironmark) [![crates.io](https://img.shields.io/crates/v/ironmark)](https://crates.io/crates/ironmark)
 
-Fast Markdown to HTML/AST parser written in Rust with **zero third-party** parsing dependencies. Fully compliant with [CommonMark 0.31.2](https://spec.commonmark.org/0.31.2/) (652/652 spec tests pass). Available as a Rust crate and as an npm package via WebAssembly, with both HTML and AST output APIs.
+Fast Markdown parser written in Rust with **zero third-party** parsing dependencies. Outputs HTML, AST, ANSI terminal, or Markdown. Fully compliant with [CommonMark 0.31.2](https://spec.commonmark.org/0.31.2/) (652/652 spec tests pass). Available as a Rust crate and as an npm package via WebAssembly.
 
-## Options
+## Table of Contents
+
+- [Configuration](#configuration)
+  - [Extensions](#extensions)
+  - [Security](#security)
+  - [Other Options](#other-options)
+- [JavaScript / TypeScript](#javascript--typescript)
+  - [Node.js](#nodejs)
+  - [AST Output](#ast-output)
+  - [HTML to Markdown](#html-to-markdown)
+  - [AST to Markdown](#ast-to-markdown)
+  - [ANSI Terminal Output](#ansi-terminal-output)
+  - [Browser / Bundler](#browser--bundler)
+- [CLI](#cli)
+- [Rust](#rust)
+- [C / C++](#c--c++)
+- [Benchmarks](#benchmarks)
+- [Development](#development)
+
+## Configuration
 
 ### Extensions (default `true`)
 
-| Option        | JS (`camelCase`)           | Rust (`snake_case`)           | Description                    |
-| ------------- | -------------------------- | ----------------------------- | ------------------------------ |
-| Hard breaks   | `hardBreaks`               | `hard_breaks`                 | Every newline becomes `<br />` |
-| Highlight     | `enableHighlight`          | `enable_highlight`            | `==text==` → `<mark>`          |
-| Strikethrough | `enableStrikethrough`      | `enable_strikethrough`        | `~~text~~` → `<del>`           |
-| Underline     | `enableUnderline`          | `enable_underline`            | `++text++` → `<u>`             |
-| Tables        | `enableTables`             | `enable_tables`               | Pipe table syntax              |
-| Autolink      | `enableAutolink`           | `enable_autolink`             | Bare URLs & emails → `<a>`     |
-| Task lists    | `enableTaskLists`          | `enable_task_lists`           | `- [ ]` / `- [x]` checkboxes   |
-| Indented code | `enableIndentedCodeBlocks` | `enable_indented_code_blocks` | 4-space indent → `<pre><code>` |
-
-### Extensions (default `false`)
-
-| Option              | JS (`camelCase`)       | Rust (`snake_case`)      | Description                                            |
-| ------------------- | ---------------------- | ------------------------ | ------------------------------------------------------ |
-| Wiki links          | `enableWikiLinks`      | `enable_wiki_links`      | `[[page]]` → `<a href="page">`                         |
-| LaTeX math          | `enableLatexMath`      | `enable_latex_math`      | `$inline$` and `$$display$$` → `<span class="math-…">` |
-| Heading IDs         | `enableHeadingIds`     | `enable_heading_ids`     | Auto `id=` on headings from slugified text             |
-| Heading anchors     | `enableHeadingAnchors` | `enable_heading_anchors` | `<a class="anchor">` inside each heading (implies IDs) |
-| Permissive headings | `permissiveAtxHeaders` | `permissive_atx_headers` | Allow `#Heading` without space after `#`               |
+| Option              | JS (`camelCase`)           | Rust (`snake_case`)           | Description                                            |
+| ------------------- | -------------------------- | ----------------------------- | ------------------------------------------------------ |
+| Hard breaks         | `hardBreaks`               | `hard_breaks`                 | Every newline becomes `<br />`                         |
+| Highlight           | `enableHighlight`          | `enable_highlight`            | `==text==` → `<mark>`                                  |
+| Strikethrough       | `enableStrikethrough`      | `enable_strikethrough`        | `~~text~~` → `<del>`                                   |
+| Underline           | `enableUnderline`          | `enable_underline`            | `++text++` → `<u>`                                     |
+| Tables              | `enableTables`             | `enable_tables`               | Pipe table syntax                                      |
+| Autolink            | `enableAutolink`           | `enable_autolink`             | Bare URLs & emails → `<a>`                             |
+| Task lists          | `enableTaskLists`          | `enable_task_lists`           | `- [ ]` / `- [x]` checkboxes                           |
+| Indented code       | `enableIndentedCodeBlocks` | `enable_indented_code_blocks` | 4-space indent → `<pre><code>`                         |
+| Wiki links          | `enableWikiLinks`          | `enable_wiki_links`           | `[[page]]` → `<a href="page">`                         |
+| LaTeX math          | `enableLateXMath`          | `enable_latex_math`           | `$inline$` and `$$display$$` → `<span class="math-…">` |
+| Heading IDs         | `enableHeadingIds`         | `enable_heading_ids`          | Auto `id=` on headings from slugified text             |
+| Heading anchors     | `enableHeadingAnchors`     | `enable_heading_anchors`      | `<a class="anchor">` inside each heading (implies IDs) |
+| Permissive headings | `permissiveAtxHeaders`     | `permissive_atx_headers`      | Allow `#Heading` without space after `#`               |
 
 ### Security
 
@@ -44,7 +58,7 @@ Fast Markdown to HTML/AST parser written in Rust with **zero third-party** parsi
 
 Dangerous URI schemes (`javascript:`, `vbscript:`, `data:` except `data:image/…`) are **always** stripped from link and image destinations, regardless of options.
 
-### Other options
+### Other Options
 
 | Option              | JS (`camelCase`)     | Rust (`snake_case`)   | Default | Description                                       |
 | ------------------- | -------------------- | --------------------- | ------- | ------------------------------------------------- |

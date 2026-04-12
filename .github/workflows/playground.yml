@@ -1,6 +1,9 @@
 name: Deploy Playground
 
 on:
+  push:
+    branches:
+      - "chore/**"
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -18,11 +21,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || github.ref }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
