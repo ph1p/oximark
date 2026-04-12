@@ -475,7 +475,7 @@ impl<'a> AnsiRenderer<'a> {
             return;
         }
 
-        // Single-pass: render every cell to ANSI once, measure from the result.
+        // Render headers and measure column widths.
         let mut header_ansi: Vec<String> = Vec::with_capacity(ncols);
         let mut col_widths: Vec<usize> = vec![0; ncols];
         for (c, cell) in table.header.iter().enumerate().take(ncols) {
@@ -484,6 +484,8 @@ impl<'a> AnsiRenderer<'a> {
             col_widths[c] = visible_len(&ansi);
             header_ansi.push(ansi);
         }
+
+        // Render body cells and expand column widths as needed.
         let row_count = table.rows.len() / ncols;
         let mut rows_ansi: Vec<String> = Vec::with_capacity(table.rows.len());
         for (i, cell) in table.rows.iter().enumerate() {
@@ -496,66 +498,9 @@ impl<'a> AnsiRenderer<'a> {
             rows_ansi.push(ansi);
         }
 
-        // Constrain columns to fit terminal width.
-        // Chrome per column: 1 left pad + 1 right pad + 1 separator = 3 chars.
-        // Plus 1 char for the leading border.
-        let max_w = self.width();
-        if max_w > 0 {
-            let chrome: usize = 1 + 3 * ncols;
-            let total_natural: usize = col_widths.iter().sum();
-            let total_table = chrome + total_natural;
-            if total_table > max_w && max_w > chrome {
-                let available = max_w - chrome;
-                const MIN_COL: usize = 3;
-
-                // If even MIN_COL per column won't fit, give each column MIN_COL
-                // and accept overflow — there's no valid solution.
-                if ncols * MIN_COL > available {
-                    for w in &mut col_widths {
-                        *w = (*w).min(MIN_COL);
-                    }
-                } else {
-                    let mut new_widths = vec![0usize; ncols];
-                    let mut remaining = available;
-
-                    // First pass: lock columns already at or below minimum.
-                    let mut locked = vec![false; ncols];
-                    for c in 0..ncols {
-                        if col_widths[c] <= MIN_COL {
-                            new_widths[c] = col_widths[c];
-                            remaining -= col_widths[c];
-                            locked[c] = true;
-                        }
-                    }
-
-                    // Second pass: distribute remaining space proportionally.
-                    let unlocked: Vec<usize> = (0..ncols).filter(|&c| !locked[c]).collect();
-                    let unlocked_total: usize = unlocked.iter().map(|&c| col_widths[c]).sum();
-
-                    if unlocked_total > 0 {
-                        let mut distributed = 0usize;
-                        for (i, &c) in unlocked.iter().enumerate() {
-                            let is_last = i + 1 == unlocked.len();
-                            let share = if is_last {
-                                remaining.saturating_sub(distributed)
-                            } else {
-                                (col_widths[c] as u64 * remaining as u64 / unlocked_total as u64)
-                                    as usize
-                            };
-                            // Clamp to MIN_COL but never exceed the fair share
-                            // of remaining budget to prevent overflow.
-                            let budget = remaining
-                                .saturating_sub(distributed)
-                                .saturating_sub((unlocked.len() - i - 1) * MIN_COL);
-                            new_widths[c] = share.max(MIN_COL).min(budget.max(MIN_COL));
-                            distributed += new_widths[c];
-                        }
-                    }
-
-                    col_widths = new_widths;
-                }
-            }
-        }
+        // If table fits terminal, use natural widths. Otherwise let it overflow.
+        // Tables are NOT constrained to terminal width — like cli-table.
+        // This preserves readability over fitting arbitrary widths.
 
         let border = if self.color() { FG_BORDER } else { "" };
         let reset = if self.color() { RESET } else { "" };
@@ -563,16 +508,16 @@ impl<'a> AnsiRenderer<'a> {
         self.push_border_line('┌', '┬', '┐', &col_widths, border, reset);
 
         // Header row
-        self.render_table_row_ansi(&header_ansi, &col_widths, &table.alignments, true, 0);
+        self.render_table_row_ansi(&header_ansi, &col_widths, &table.alignments, true);
 
         self.push_border_line('├', '┼', '┤', &col_widths, border, reset);
 
-        // Data rows (zebra-striped)
+        // Data rows
         for row in 0..row_count {
             let start = row * ncols;
             let end = (start + ncols).min(rows_ansi.len());
             let row_ansi = &rows_ansi[start..end];
-            self.render_table_row_ansi(row_ansi, &col_widths, &table.alignments, false, row);
+            self.render_table_row_ansi(row_ansi, &col_widths, &table.alignments, false);
         }
 
         self.push_border_line('└', '┴', '┘', &col_widths, border, reset);
@@ -608,14 +553,7 @@ impl<'a> AnsiRenderer<'a> {
         col_widths: &[usize],
         alignments: &[TableAlignment],
         is_header: bool,
-        row_index: usize,
     ) {
-        let row_bg: &str = if self.color() && !is_header && row_index % 2 == 1 {
-            BG_ZEBRA
-        } else {
-            ""
-        };
-
         let border = if self.color() { FG_BORDER } else { "" };
         let reset = if self.color() { RESET } else { "" };
 
@@ -650,7 +588,6 @@ impl<'a> AnsiRenderer<'a> {
                 let vis = visible_len(cell_ansi);
                 let pad = w.saturating_sub(vis);
 
-                self.out.push_str(row_bg);
                 if is_header && self.color() {
                     self.out.push_str(BOLD);
                     self.out.push_str(FG_H1);
@@ -670,9 +607,6 @@ impl<'a> AnsiRenderer<'a> {
                 self.out.push_str(cell_out);
                 if self.color() {
                     self.out.push_str(RESET);
-                    if !row_bg.is_empty() {
-                        self.out.push_str(row_bg);
-                    }
                 }
                 for _ in 0..rpad {
                     self.out.push(' ');

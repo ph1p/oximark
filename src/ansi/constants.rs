@@ -31,7 +31,6 @@ pub(super) const FG_INLINE_CODE: &str = "\x1b[38;5;215m"; // #FFAF5F warm amber/
 // Structure / chrome
 pub(super) const FG_BORDER: &str = "\x1b[38;5;238m"; // #444444 box/table borders
 pub(super) const FG_DIM_TEXT: &str = "\x1b[38;5;244m"; // #808080 blockquote body text
-pub(super) const BG_ZEBRA: &str = "\x1b[48;5;234m"; // #1C1C1C barely-perceptible stripe
 /// Pre-built replacement: RESET + FG_DIM_TEXT — used when re-colouring blockquote lines.
 pub(super) const RESET_DIM: &str = "\x1b[0m\x1b[38;5;244m";
 pub(super) const FG_QUOTE_BAR: &str = "\x1b[38;5;74m"; // #5FAFD7 blockquote bar
