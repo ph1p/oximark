@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { version } from "../../../package.json";
 import type { AppView } from "./types";
 
@@ -14,6 +15,21 @@ const NAV: { label: string; view: AppView; hash: string }[] = [
 ];
 
 export function Header({ statusText, currentView }: HeaderProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
   return (
     <header className="flex items-center justify-between px-3 py-2 md:px-5 md:py-3 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
       <div className="flex items-center gap-3 md:gap-4 min-w-0">
@@ -21,7 +37,8 @@ export function Header({ statusText, currentView }: HeaderProps) {
           <h1 className="text-sm md:text-base font-semibold tracking-tight">ironmark</h1>
           <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">v{version}</span>
         </div>
-        <nav className="flex items-center gap-1">
+        {/* Desktop nav */}
+        <nav className="hidden sm:flex items-center gap-1">
           {NAV.map(({ label, view, hash }) => (
             <a
               key={view}
@@ -36,6 +53,49 @@ export function Header({ statusText, currentView }: HeaderProps) {
             </a>
           ))}
         </nav>
+        {/* Mobile nav */}
+        <div className="sm:hidden relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+            aria-expanded={menuOpen}
+            aria-haspopup="true"
+          >
+            {NAV.find((n) => n.view === currentView)?.label ?? "Menu"}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`transition-transform ${menuOpen ? "rotate-180" : ""}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {menuOpen && (
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-[140px]">
+              {NAV.map(({ label, view, hash }) => (
+                <a
+                  key={view}
+                  href={hash}
+                  onClick={() => setMenuOpen(false)}
+                  className={`block px-3 py-2 text-xs font-medium transition-colors ${
+                    currentView === view
+                      ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                      : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-2 md:gap-3 shrink-0">
         {currentView === "playground" && (

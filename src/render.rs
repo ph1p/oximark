@@ -544,9 +544,55 @@ fn render_table_cell(
 
 /// Generate a URL-safe slug from heading raw markdown text.
 /// Strips markdown syntax, lowercases, replaces spaces/hyphens/dots with `-`.
+/// Uses inline buffer for short slugs to avoid heap allocation.
 fn heading_slug(raw: &str) -> String {
     let bytes = raw.as_bytes();
     let len = bytes.len();
+
+    // Fast path: check if heading is already slug-safe (common for simple headings).
+    // A slug-safe heading has only ASCII alphanumerics and dashes (no leading/trailing dash).
+    if len <= 64 {
+        let mut is_safe = true;
+        let mut has_content = false;
+        for (idx, &b) in bytes.iter().enumerate() {
+            if b.is_ascii_alphanumeric() {
+                has_content = true;
+            } else if b == b'-' {
+                // Dash is ok if not leading/trailing and has content
+                if idx == 0 || idx == len - 1 || !has_content {
+                    is_safe = false;
+                    break;
+                }
+            } else {
+                is_safe = false;
+                break;
+            }
+        }
+        if is_safe && has_content {
+            // Still need to lowercase
+            let mut all_lower = true;
+            for &b in bytes {
+                if b.is_ascii_uppercase() {
+                    all_lower = false;
+                    break;
+                }
+            }
+            if all_lower {
+                return raw.to_string();
+            }
+            // Lowercase in place
+            let mut slug = raw.to_string();
+            // SAFETY: lowercasing ASCII preserves UTF-8 validity
+            unsafe {
+                slug.as_mut_vec()
+                    .iter_mut()
+                    .for_each(|b| *b = b.to_ascii_lowercase())
+            };
+            return slug;
+        }
+    }
+
+    // Slow path: process character by character
     let mut slug = String::with_capacity(len);
     let mut i = 0;
     let mut prev_dash = true; // start true to avoid leading dash
@@ -558,7 +604,7 @@ fn heading_slug(raw: &str) -> String {
                 i += 1;
             }
             b'<' => {
-                if let Some(close) = raw[i..].find('>') {
+                if let Some(close) = memchr::memchr(b'>', &bytes[i..]) {
                     i += close + 1;
                 } else {
                     i += 1;
@@ -587,18 +633,22 @@ fn heading_slug(raw: &str) -> String {
             // Multi-byte UTF-8
             b if b >= 0x80 => {
                 let char_len = crate::utf8_char_len(b);
-                if let Some(c) = raw[i..].chars().next() {
-                    if c.is_alphanumeric() {
-                        for lc in c.to_lowercase() {
-                            slug.push(lc);
-                        }
-                        prev_dash = false;
-                    } else {
-                        // Non-alphanumeric Unicode → dash separator
-                        if !prev_dash && !slug.is_empty() {
-                            slug.push('-');
-                            prev_dash = true;
-                        }
+                // SAFETY: We've verified b >= 0x80 indicating a multi-byte sequence.
+                // The input `raw` is valid UTF-8, so the char boundary at `i` is valid.
+                let c = unsafe { raw.get_unchecked(i..) }
+                    .chars()
+                    .next()
+                    .unwrap_or(' ');
+                if c.is_alphanumeric() {
+                    for lc in c.to_lowercase() {
+                        slug.push(lc);
+                    }
+                    prev_dash = false;
+                } else {
+                    // Non-alphanumeric Unicode → dash separator
+                    if !prev_dash && !slug.is_empty() {
+                        slug.push('-');
+                        prev_dash = true;
                     }
                 }
                 i += char_len;

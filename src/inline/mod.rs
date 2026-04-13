@@ -70,7 +70,9 @@ pub(crate) fn normalize_reference_label(label: &str) -> Cow<'_, str> {
                 i += 1;
             }
         } else {
-            let ch = &trimmed[i..];
+            // SAFETY: We've verified bytes[i] >= 0x80, indicating a multi-byte UTF-8 sequence.
+            // `trimmed` is valid UTF-8, so we can safely slice from a char boundary at `i`.
+            let ch = unsafe { trimmed.get_unchecked(i..) };
             let c = ch.chars().next().unwrap();
             let clen = c.len_utf8();
             if c.is_whitespace() {
@@ -634,7 +636,7 @@ struct LinkInfo {
 #[derive(Clone, Debug)]
 enum InlineItem {
     TextRange(usize, usize),
-    TextOwned(String),
+    TextOwned(Box<str>),
     TextStatic(&'static str),
     TextInline {
         buf: [u8; 8],
@@ -642,7 +644,7 @@ enum InlineItem {
     },
     RawHtml(usize, usize),
     Autolink(u32, u32, bool),
-    Code(String),
+    Code(Box<str>),
     /// Code span stored as byte range into input (unescaped). Escaped at render time.
     CodeRange(u32, u32),
     HardBreak,

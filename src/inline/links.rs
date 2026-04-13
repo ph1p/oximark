@@ -656,7 +656,7 @@ impl<'a> InlineScanner<'a> {
             let resolved = unsafe { std::str::from_utf8_unchecked(&char_buf[..char_len]) };
             let mut s = String::with_capacity(char_len + 8);
             escape_html_into(&mut s, resolved);
-            self.items.push(InlineItem::TextOwned(s));
+            self.items.push(InlineItem::TextOwned(s.into_boxed_str()));
         } else {
             self.items.push(InlineItem::TextInline {
                 buf: char_buf,

@@ -308,7 +308,7 @@ impl<'a> InlineScanner<'a> {
                         self.items
                             .push(InlineItem::Code(content[1..content.len() - 1].into()));
                     } else {
-                        self.items.push(InlineItem::Code(content));
+                        self.items.push(InlineItem::Code(content.into_boxed_str()));
                     }
                 }
                 return;

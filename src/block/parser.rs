@@ -303,9 +303,17 @@ impl<'a> BlockParser<'a> {
                                 self.open.push(para);
                                 return;
                             }
-                            let mut raw = remaining;
-                            let trimmed_len = raw.trim_end().len();
-                            raw.truncate(trimmed_len);
+                            let raw = match remaining {
+                                Cow::Borrowed(s) => {
+                                    let trimmed = s.trim_end();
+                                    trimmed.to_string()
+                                }
+                                Cow::Owned(mut s) => {
+                                    let trimmed_len = s.trim_end().len();
+                                    s.truncate(trimmed_len);
+                                    s
+                                }
+                            };
                             self.open.pop();
                             let heading = Block::Heading { level, raw };
                             let parent = self.open.last_mut().unwrap();
@@ -757,7 +765,7 @@ impl<'a> BlockParser<'a> {
         }
     }
 
-    pub(super) fn extract_ref_defs(&mut self, content: &str) -> String {
+    pub(super) fn extract_ref_defs<'c>(&mut self, content: &'c str) -> Cow<'c, str> {
         let mut pos = 0;
         loop {
             let trimmed = content[pos..].trim_start();
@@ -785,7 +793,13 @@ impl<'a> BlockParser<'a> {
                 break;
             }
         }
-        content[pos..].trim().to_string()
+        let remaining = content[pos..].trim();
+        if pos == 0 && remaining.len() == content.len() {
+            // No ref defs extracted and no trimming needed — return borrowed
+            Cow::Borrowed(content)
+        } else {
+            Cow::Owned(remaining.to_string())
+        }
     }
 
     #[inline]
@@ -827,6 +841,6 @@ impl<'a> BlockParser<'a> {
             }
             return content;
         }
-        self.extract_ref_defs(&content[start..end])
+        self.extract_ref_defs(&content[start..end]).into_owned()
     }
 }
