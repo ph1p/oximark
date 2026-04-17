@@ -27,7 +27,7 @@ wasmGlue.__wbg_set_wasm(wasmInstance.exports);
 
 export function init() {}
 
-export const parse = createParse(wasmGlue.parse);
+export const parse = createParse(wasmGlue.parse, wasmGlue.parseDefault);
 export const parseToAst = createParseToAst(wasmGlue.parseToAst);
 export const renderAnsi = createRenderAnsi(wasmGlue.renderAnsi);
 export const parseHtmlToAst = createParseHtmlToAst(wasmGlue.parseHtmlToAst);

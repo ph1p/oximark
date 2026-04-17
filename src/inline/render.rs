@@ -140,7 +140,7 @@ impl<'a> InlineScanner<'a> {
                         out.push('"');
                         if let Some(t) = title {
                             out.push_str(" title=\"");
-                            escape_html_into(out, t);
+                            write_link_title(out, t, self.input);
                             out.push('"');
                         }
                         out.push_str(" />");
@@ -153,7 +153,7 @@ impl<'a> InlineScanner<'a> {
                         out.push('"');
                         if let Some(t) = title {
                             out.push_str(" title=\"");
-                            escape_html_into(out, t);
+                            write_link_title(out, t, self.input);
                             out.push('"');
                         }
                         out.push('>');
@@ -204,7 +204,7 @@ impl<'a> InlineScanner<'a> {
     }
 
     pub(super) fn collect_alt_text(&self, start: usize, end: usize) -> String {
-        let mut s = String::new();
+        let mut s = String::with_capacity((end - start) * 4);
         for idx in start..end {
             match &self.items[idx] {
                 InlineItem::TextRange(a, b) => s.push_str(&self.input[*a..*b]),
@@ -243,6 +243,14 @@ fn is_dangerous_link_dest(dest: &LinkDest, input: &str) -> bool {
             }
         }
         LinkDest::Owned(d) => is_dangerous_url(d),
+    }
+}
+
+#[inline]
+fn write_link_title(out: &mut String, title: &LinkTitle, input: &str) {
+    match title {
+        LinkTitle::Range(s, e) => escape_html_into(out, &input[*s as usize..*e as usize]),
+        LinkTitle::Owned(t) => escape_html_into(out, t),
     }
 }
 

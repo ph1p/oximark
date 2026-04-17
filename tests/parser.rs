@@ -57,6 +57,14 @@ fn parses_inline_styles() {
 }
 
 #[test]
+fn parses_simple_inline_mix() {
+    assert_html(
+        "This has **bold**, *italic*, `code`, ~~strike~~, and [link](http://x.com/1).",
+        "<p>This has <strong>bold</strong>, <em>italic</em>, <code>code</code>, <del>strike</del>, and <a href=\"http://x.com/1\">link</a>.</p>\n",
+    );
+}
+
+#[test]
 fn parses_underscore_variants() {
     assert_html(
         "__strong__ and _em_",
@@ -77,6 +85,14 @@ fn parses_links_and_inline_label_markup() {
     assert_html(
         "visit [**site**](https://example.com)",
         "<p>visit <a href=\"https://example.com\"><strong>site</strong></a></p>\n",
+    );
+}
+
+#[test]
+fn complex_inline_markup_still_falls_back() {
+    assert_html(
+        "visit [**site**](https://example.com) and **outer *inner***",
+        "<p>visit <a href=\"https://example.com\"><strong>site</strong></a> and <strong>outer <em>inner</em></strong></p>\n",
     );
 }
 

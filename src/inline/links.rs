@@ -1,7 +1,7 @@
 use super::*;
 
 impl<'a> InlineScanner<'a> {
-    pub(super) fn try_inline_link(&mut self) -> Option<(LinkDest, Option<Rc<str>>)> {
+    pub(super) fn try_inline_link(&mut self) -> Option<(LinkDest, Option<LinkTitle>)> {
         if self.pos >= self.bytes.len() || self.bytes[self.pos] != b'(' {
             return None;
         }
@@ -16,7 +16,7 @@ impl<'a> InlineScanner<'a> {
 
         let dest = if self.pos < self.bytes.len() && self.bytes[self.pos] == b'<' {
             match self.scan_angle_dest() {
-                Some(d) => LinkDest::Owned(d.into()),
+                Some(d) => d,
                 None => {
                     self.pos = saved;
                     return None;
@@ -34,10 +34,10 @@ impl<'a> InlineScanner<'a> {
 
         self.skip_ws();
 
-        let mut title: Option<Rc<str>> = None;
+        let mut title: Option<LinkTitle> = None;
         if self.pos < self.bytes.len() && matches!(self.bytes[self.pos], b'"' | b'\'' | b'(') {
             match self.scan_link_title() {
-                Some(t) => title = Some(t.into()),
+                Some(t) => title = Some(t),
                 None => {
                     self.pos = saved;
                     return None;
@@ -54,33 +54,55 @@ impl<'a> InlineScanner<'a> {
         Some((dest, title))
     }
 
-    pub(super) fn scan_angle_dest(&mut self) -> Option<String> {
+    pub(super) fn scan_angle_dest(&mut self) -> Option<LinkDest> {
         self.pos += 1;
-        let mut dest = String::new();
-        while self.pos < self.bytes.len() {
-            let b = self.bytes[self.pos];
-            if b == b'>' {
-                self.pos += 1;
-                return Some(dest);
-            }
-            if b == b'<' || b == b'\n' {
-                return None;
-            }
-            if b == b'\\'
-                && self.pos + 1 < self.bytes.len()
-                && is_ascii_punctuation(self.bytes[self.pos + 1])
-            {
-                dest.push(self.bytes[self.pos + 1] as char);
-                self.pos += 2;
-            } else if b == b'&' {
-                if !self.resolve_entity_into(&mut dest) {
-                    dest.push('&');
-                    self.pos += 1;
+        let content_start = self.pos;
+        // Fast path: scan for close `>` without any escapes or entities.
+        let mut end = self.pos;
+        while end < self.bytes.len() {
+            match self.bytes[end] {
+                b'>' => {
+                    let range = LinkDest::Range(content_start as u32, end as u32);
+                    self.pos = end + 1;
+                    return Some(range);
                 }
-            } else {
-                let cs = self.pos;
-                self.pos += utf8_char_len(b);
-                dest.push_str(&self.input[cs..self.pos]);
+                b'<' | b'\n' => break,
+                b'\\' | b'&' => {
+                    // Need slow path with escape/entity processing.
+                    let mut dest = String::with_capacity(end - content_start + 16);
+                    dest.push_str(&self.input[content_start..end]);
+                    self.pos = end;
+                    loop {
+                        if self.pos >= self.bytes.len() {
+                            return None;
+                        }
+                        let b = self.bytes[self.pos];
+                        if b == b'>' {
+                            self.pos += 1;
+                            return Some(LinkDest::Owned(dest.into()));
+                        }
+                        if b == b'<' || b == b'\n' {
+                            return None;
+                        }
+                        if b == b'\\'
+                            && self.pos + 1 < self.bytes.len()
+                            && is_ascii_punctuation(self.bytes[self.pos + 1])
+                        {
+                            dest.push(self.bytes[self.pos + 1] as char);
+                            self.pos += 2;
+                        } else if b == b'&' {
+                            if !self.resolve_entity_into(&mut dest) {
+                                dest.push('&');
+                                self.pos += 1;
+                            }
+                        } else {
+                            let cs = self.pos;
+                            self.pos += utf8_char_len(b);
+                            dest.push_str(&self.input[cs..self.pos]);
+                        }
+                    }
+                }
+                _ => end += 1,
             }
         }
         None
@@ -158,7 +180,7 @@ impl<'a> InlineScanner<'a> {
         Some(LinkDest::Owned(dest.into()))
     }
 
-    pub(super) fn scan_link_title(&mut self) -> Option<String> {
+    pub(super) fn scan_link_title(&mut self) -> Option<LinkTitle> {
         let q = self.bytes[self.pos];
         let cq = match q {
             b'"' => b'"',
@@ -167,32 +189,55 @@ impl<'a> InlineScanner<'a> {
             _ => return None,
         };
         self.pos += 1;
-        let mut title = String::new();
-        while self.pos < self.bytes.len() {
-            let b = self.bytes[self.pos];
+        let content_start = self.pos;
+        // Fast path: scan for closing delimiter without escapes or entities.
+        let mut end = self.pos;
+        while end < self.bytes.len() {
+            let b = self.bytes[end];
             if b == cq {
-                self.pos += 1;
-                return Some(title);
+                let range = LinkTitle::Range(content_start as u32, end as u32);
+                self.pos = end + 1;
+                return Some(range);
             }
             if b == b'(' && q == b'(' {
-                return None;
+                break;
             }
-            if b == b'\\'
-                && self.pos + 1 < self.bytes.len()
-                && is_ascii_punctuation(self.bytes[self.pos + 1])
-            {
-                title.push(self.bytes[self.pos + 1] as char);
-                self.pos += 2;
-            } else if b == b'&' {
-                if !self.resolve_entity_into(&mut title) {
-                    title.push('&');
-                    self.pos += 1;
+            if b == b'\\' || b == b'&' {
+                // Need slow path.
+                let mut title = String::with_capacity(end - content_start + 16);
+                title.push_str(&self.input[content_start..end]);
+                self.pos = end;
+                loop {
+                    if self.pos >= self.bytes.len() {
+                        return None;
+                    }
+                    let b = self.bytes[self.pos];
+                    if b == cq {
+                        self.pos += 1;
+                        return Some(LinkTitle::Owned(title.into()));
+                    }
+                    if b == b'(' && q == b'(' {
+                        return None;
+                    }
+                    if b == b'\\'
+                        && self.pos + 1 < self.bytes.len()
+                        && is_ascii_punctuation(self.bytes[self.pos + 1])
+                    {
+                        title.push(self.bytes[self.pos + 1] as char);
+                        self.pos += 2;
+                    } else if b == b'&' {
+                        if !self.resolve_entity_into(&mut title) {
+                            title.push('&');
+                            self.pos += 1;
+                        }
+                    } else {
+                        let cs = self.pos;
+                        self.pos += utf8_char_len(b);
+                        title.push_str(&self.input[cs..self.pos]);
+                    }
                 }
-            } else {
-                let cs = self.pos;
-                self.pos += utf8_char_len(b);
-                title.push_str(&self.input[cs..self.pos]);
             }
+            end += 1;
         }
         None
     }
@@ -201,7 +246,7 @@ impl<'a> InlineScanner<'a> {
         &mut self,
         text_pos: usize,
         close_pos: usize,
-    ) -> Option<(LinkDest, Option<Rc<str>>)> {
+    ) -> Option<(LinkDest, Option<LinkTitle>)> {
         let saved = self.pos;
         let raw_label = &self.input[text_pos..close_pos];
 
@@ -232,7 +277,10 @@ impl<'a> InlineScanner<'a> {
                         };
                         let key = normalize_reference_label(lookup);
                         if let Some(r) = self.refs.get(&*key) {
-                            return Some((LinkDest::Owned(r.href.clone()), r.title.clone()));
+                            return Some((
+                                LinkDest::Owned(r.href.clone()),
+                                r.title.clone().map(LinkTitle::Owned),
+                            ));
                         }
                         self.pos = saved;
                         return None;
@@ -255,7 +303,10 @@ impl<'a> InlineScanner<'a> {
             {
                 self.pos += 2;
             }
-            return Some((LinkDest::Owned(r.href.clone()), r.title.clone()));
+            return Some((
+                LinkDest::Owned(r.href.clone()),
+                r.title.clone().map(LinkTitle::Owned),
+            ));
         }
 
         None

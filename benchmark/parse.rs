@@ -1,5 +1,8 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use ironmark::{ParseOptions, parse};
+use ironmark::{
+    __benchmark_heading_slug, __benchmark_parse_inline, __benchmark_parse_table_row, ParseOptions,
+    parse,
+};
 
 type BenchCase = (&'static str, fn() -> String);
 
@@ -388,6 +391,34 @@ fn bench_all_features(c: &mut Criterion) {
     bench_group(c, "all_features", gen_all_features_doc());
 }
 
+fn bench_hotspots(c: &mut Criterion) {
+    let opts = ParseOptions {
+        enable_heading_ids: true,
+        enable_heading_anchors: true,
+        ..ParseOptions::default()
+    };
+    let inline =
+        "This has **bold**, *italic*, `code`, ~~strike~~, [link](http://x.com/1), and more.";
+    let heading = "A Heading with **Bold**, `Code`, links [x](y), and Unicode äöü";
+    let table_row =
+        "| r0c0 | r0c1 with **bold** | r0c2 | r0c3 | r0c4 | r0c5 | r0c6 | r0c7 | r0c8 | r0c9 |";
+
+    let mut group = c.benchmark_group("hotspots");
+    group.warm_up_time(std::time::Duration::from_millis(300));
+    group.measurement_time(std::time::Duration::from_millis(1000));
+    group.sample_size(50);
+    group.bench_function("inline_pass", |b| {
+        b.iter(|| __benchmark_parse_inline(black_box(inline), black_box(&opts)))
+    });
+    group.bench_function("heading_slug", |b| {
+        b.iter(|| __benchmark_heading_slug(black_box(heading)))
+    });
+    group.bench_function("table_row_parse", |b| {
+        b.iter(|| __benchmark_parse_table_row(black_box(table_row), black_box(10)))
+    });
+    group.finish();
+}
+
 // --- CSV export ---
 //
 // Reads median_ns from criterion's own estimates.json files — no re-measurement.
@@ -546,6 +577,7 @@ criterion_group!(
     bench_pathological,
     bench_large_lines,
     bench_all_features,
+    bench_hotspots,
     export_csv,
 );
 criterion_main!(benches);

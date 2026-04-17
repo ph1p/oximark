@@ -10,6 +10,9 @@ export type TrendPoint = {
   ironmark_wasm_ns?: number;
   ironmark_bun_ns?: number;
   ironmark_rust_ns?: number;
+  ironmark_wasm_ratio?: number;
+  ironmark_bun_ratio?: number;
+  ironmark_rust_ratio?: number;
 };
 export type BenchmarkData = {
   generatedAt: string;

@@ -1,7 +1,7 @@
-//! Tests for HTML-to-AST parsing and HTML-to-Markdown conversion.
+//! Direct contract tests for HTML-to-AST parsing and HTML-to-Markdown conversion.
 
 use ironmark::{
-    Block, HtmlParseOptions, ParseOptions, UnknownInlineHandling, html_to_markdown, parse,
+    Block, HtmlParseOptions, ListKind, TableAlignment, UnknownInlineHandling, html_to_markdown,
     parse_html_to_ast,
 };
 
@@ -9,386 +9,367 @@ fn default_opts() -> HtmlParseOptions {
     HtmlParseOptions::default()
 }
 
-// ============================================================================
-// Basic Block Element Tests
-// ============================================================================
+fn document_children(block: &Block) -> &[Block] {
+    match block {
+        Block::Document { children } => children,
+        other => panic!("expected document, got {other:?}"),
+    }
+}
 
-#[test]
-fn test_paragraph() {
-    let ast = parse_html_to_ast("<p>Hello world</p>", &default_opts());
-    if let Block::Document { children } = ast {
-        assert_eq!(children.len(), 1);
-        assert!(matches!(&children[0], Block::Paragraph { raw } if raw == "Hello world"));
-    } else {
-        panic!("Expected Document");
+fn paragraph_raw(block: &Block) -> &str {
+    match block {
+        Block::Paragraph { raw } => raw,
+        other => panic!("expected paragraph, got {other:?}"),
     }
 }
 
 #[test]
-fn test_multiple_paragraphs() {
-    let ast = parse_html_to_ast("<p>First</p><p>Second</p>", &default_opts());
-    if let Block::Document { children } = ast {
-        assert_eq!(children.len(), 2);
-    } else {
-        panic!("Expected Document");
-    }
+fn parses_basic_block_elements_to_exact_ast_shapes() {
+    let ast = parse_html_to_ast("<p>Hello world</p><hr><h2>Title</h2>", &default_opts());
+    let children = document_children(&ast);
+
+    assert_eq!(children.len(), 3);
+    assert_eq!(paragraph_raw(&children[0]), "Hello world");
+    assert!(matches!(children[1], Block::ThematicBreak));
+    assert!(matches!(
+        &children[2],
+        Block::Heading { level: 2, raw } if raw == "Title"
+    ));
 }
 
 #[test]
-fn test_headings() {
+fn parses_heading_levels_exactly() {
     for level in 1..=6 {
-        let html = format!("<h{}>Heading {}</h{}>", level, level, level);
+        let html = format!("<h{level}>Heading {level}</h{level}>");
         let ast = parse_html_to_ast(&html, &default_opts());
-        if let Block::Document { children } = ast {
-            assert_eq!(children.len(), 1);
-            if let Block::Heading { level: l, raw: r } = &children[0] {
-                assert_eq!(*l, level);
-                assert_eq!(r, &format!("Heading {}", level));
-            } else {
-                panic!("Expected Heading");
-            }
-        }
+        let children = document_children(&ast);
+
+        assert_eq!(children.len(), 1);
+        assert!(matches!(
+            &children[0],
+            Block::Heading { level: actual, raw } if *actual == level && raw == &format!("Heading {level}")
+        ));
     }
 }
 
 #[test]
-fn test_code_block() {
-    let ast = parse_html_to_ast(
+fn parses_code_blocks_with_and_without_language() {
+    let rust_ast = parse_html_to_ast(
         r#"<pre><code class="language-rust">fn main() {}</code></pre>"#,
         &default_opts(),
     );
-    if let Block::Document { children } = ast {
-        assert_eq!(children.len(), 1);
-        if let Block::CodeBlock { info, literal } = &children[0] {
-            assert_eq!(info.as_str(), "rust");
-            assert_eq!(literal, "fn main() {}");
-        } else {
-            panic!("Expected CodeBlock");
-        }
-    }
+    let plain_ast = parse_html_to_ast("<pre><code>plain code</code></pre>", &default_opts());
+
+    let rust_children = document_children(&rust_ast);
+    let plain_children = document_children(&plain_ast);
+
+    assert!(matches!(
+        &rust_children[0],
+        Block::CodeBlock { info, literal } if info.as_str() == "rust" && literal == "fn main() {}"
+    ));
+    assert!(matches!(
+        &plain_children[0],
+        Block::CodeBlock { info, literal } if info.is_empty() && literal == "plain code"
+    ));
 }
 
 #[test]
-fn test_code_block_no_language() {
-    let ast = parse_html_to_ast("<pre><code>plain code</code></pre>", &default_opts());
-    if let Block::Document { children } = ast {
-        if let Block::CodeBlock { info, literal } = &children[0] {
-            assert!(info.is_empty());
-            assert_eq!(literal, "plain code");
-        } else {
-            panic!("Expected CodeBlock");
-        }
-    }
-}
-
-#[test]
-fn test_blockquote() {
-    let ast = parse_html_to_ast("<blockquote><p>Quote</p></blockquote>", &default_opts());
-    if let Block::Document { children } = ast {
-        assert_eq!(children.len(), 1);
-        if let Block::BlockQuote { children } = &children[0] {
-            assert_eq!(children.len(), 1);
-        } else {
-            panic!("Expected BlockQuote");
-        }
-    }
-}
-
-#[test]
-fn test_thematic_break() {
-    let ast = parse_html_to_ast("<p>Before</p><hr><p>After</p>", &default_opts());
-    if let Block::Document { children } = ast {
-        assert_eq!(children.len(), 3);
-        assert!(matches!(&children[1], Block::ThematicBreak));
-    }
-}
-
-// ============================================================================
-// List Tests
-// ============================================================================
-
-#[test]
-fn test_unordered_list() {
-    let ast = parse_html_to_ast("<ul><li>One</li><li>Two</li></ul>", &default_opts());
-    if let Block::Document { children } = ast {
-        assert_eq!(children.len(), 1);
-        if let Block::List { children, .. } = &children[0] {
-            assert_eq!(children.len(), 2);
-        } else {
-            panic!("Expected List");
-        }
-    }
-}
-
-#[test]
-fn test_ordered_list() {
+fn parses_blockquotes_and_nested_blockquotes() {
     let ast = parse_html_to_ast(
+        "<blockquote><p>Outer</p><blockquote><p>Inner</p></blockquote></blockquote>",
+        &default_opts(),
+    );
+    let children = document_children(&ast);
+
+    assert_eq!(children.len(), 1);
+    match &children[0] {
+        Block::BlockQuote { children } => {
+            assert_eq!(children.len(), 2);
+            assert_eq!(paragraph_raw(&children[0]), "Outer");
+            match &children[1] {
+                Block::BlockQuote { children } => {
+                    assert_eq!(children.len(), 1);
+                    assert_eq!(paragraph_raw(&children[0]), "Inner");
+                }
+                other => panic!("expected nested blockquote, got {other:?}"),
+            }
+        }
+        other => panic!("expected blockquote, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_lists_task_lists_and_nested_lists() {
+    let unordered = parse_html_to_ast("<ul><li>One</li><li>Two</li></ul>", &default_opts());
+    let ordered = parse_html_to_ast(
         r#"<ol start="5"><li>A</li><li>B</li></ol>"#,
         &default_opts(),
     );
-    if let Block::Document { children } = ast {
-        if let Block::List {
-            start, children, ..
-        } = &children[0]
-        {
-            assert_eq!(*start, 5);
-            assert_eq!(children.len(), 2);
-        } else {
-            panic!("Expected List");
+    let nested = parse_html_to_ast(
+        "<ul><li><p>Parent</p><ul><li>Nested</li></ul></li><li>Sibling</li></ul>",
+        &default_opts(),
+    );
+    let tasks = parse_html_to_ast(
+        r#"<ul><li><input type="checkbox" checked>Done</li><li><input type="checkbox">Todo</li></ul>"#,
+        &default_opts(),
+    );
+
+    assert!(matches!(
+        &document_children(&unordered)[0],
+        Block::List { kind: ListKind::Bullet(b'-'), start: 1, tight: true, children } if children.len() == 2
+    ));
+    assert!(matches!(
+        &document_children(&ordered)[0],
+        Block::List { kind: ListKind::Ordered(b'.'), start: 5, children, .. } if children.len() == 2
+    ));
+
+    match &document_children(&nested)[0] {
+        Block::List {
+            tight: false,
+            children,
+            ..
+        } => match &children[0] {
+            Block::ListItem { children, .. } => {
+                assert_eq!(children.len(), 2);
+                assert_eq!(paragraph_raw(&children[0]), "Parent");
+                assert!(matches!(children[1], Block::List { .. }));
+            }
+            other => panic!("expected list item, got {other:?}"),
+        },
+        other => panic!("expected nested list, got {other:?}"),
+    }
+
+    match &document_children(&tasks)[0] {
+        Block::List { children, .. } => {
+            assert!(matches!(
+                &children[0],
+                Block::ListItem { checked: Some(true), children } if paragraph_raw(&children[0]) == "Done"
+            ));
+            assert!(matches!(
+                &children[1],
+                Block::ListItem { checked: Some(false), children } if paragraph_raw(&children[0]) == "Todo"
+            ));
         }
+        other => panic!("expected task list, got {other:?}"),
     }
 }
 
 #[test]
-fn test_nested_list() {
-    let html = "<ul><li>Item 1<ul><li>Nested</li></ul></li><li>Item 2</li></ul>";
-    let ast = parse_html_to_ast(html, &default_opts());
-    if let Block::Document { children } = ast
-        && let Block::List { children, .. } = &children[0]
-    {
-        assert_eq!(children.len(), 2);
-        if let Block::ListItem { children, .. } = &children[0] {
-            // Should have paragraph and nested list
-            assert!(!children.is_empty());
+fn parses_tables_and_alignment_attributes() {
+    let align_attr = parse_html_to_ast(
+        r#"<table><thead><tr><th align="left">A</th><th align="center">B</th><th align="right">C</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody></table>"#,
+        &default_opts(),
+    );
+    let align_style = parse_html_to_ast(
+        r#"<table><thead><tr><th style="text-align:left">Left</th><th style="text-align:center">Center</th><th style="text-align:right">Right</th></tr></thead></table>"#,
+        &default_opts(),
+    );
+
+    match &document_children(&align_attr)[0] {
+        Block::Table(table) => {
+            assert_eq!(table.num_cols, 3);
+            assert_eq!(
+                table.alignments,
+                vec![
+                    TableAlignment::Left,
+                    TableAlignment::Center,
+                    TableAlignment::Right,
+                ]
+            );
+            assert_eq!(table.header, vec!["A", "B", "C"]);
+            assert_eq!(table.rows, vec!["1", "2", "3"]);
         }
+        other => panic!("expected table, got {other:?}"),
+    }
+
+    match &document_children(&align_style)[0] {
+        Block::Table(table) => {
+            assert_eq!(
+                table.alignments,
+                vec![
+                    TableAlignment::Left,
+                    TableAlignment::Center,
+                    TableAlignment::Right,
+                ]
+            );
+            assert_eq!(table.header, vec!["Left", "Center", "Right"]);
+            assert!(table.rows.is_empty());
+        }
+        other => panic!("expected styled table, got {other:?}"),
     }
 }
 
 #[test]
-fn test_task_list() {
-    let html = r#"<ul><li><input type="checkbox" checked>Done</li><li><input type="checkbox">Todo</li></ul>"#;
-    let ast = parse_html_to_ast(html, &default_opts());
-    if let Block::Document { children } = ast
-        && let Block::List { children, .. } = &children[0]
-    {
-        if let Block::ListItem { checked, .. } = &children[0] {
-            assert_eq!(*checked, Some(true));
-        }
-        if let Block::ListItem { checked, .. } = &children[1] {
-            assert_eq!(*checked, Some(false));
-        }
-    }
-}
-
-// ============================================================================
-// Table Tests
-// ============================================================================
-
-#[test]
-fn test_simple_table() {
-    let html = "<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>";
-    let ast = parse_html_to_ast(html, &default_opts());
-    if let Block::Document { children } = ast {
-        if let Block::Table(table) = &children[0] {
-            assert_eq!(table.num_cols, 2);
-            assert_eq!(table.header.len(), 2);
-            assert_eq!(table.rows.len(), 2); // 2 cells in 1 row
-        } else {
-            panic!("Expected Table");
-        }
-    }
-}
-
-// ============================================================================
-// Inline Element Tests
-// ============================================================================
-
-#[test]
-fn test_inline_bold() {
-    let md = html_to_markdown("<p><strong>Bold</strong> text</p>", &default_opts());
-    assert!(md.contains("**Bold**"));
-}
-
-#[test]
-fn test_inline_italic() {
-    let md = html_to_markdown("<p><em>Italic</em> text</p>", &default_opts());
-    assert!(md.contains("*Italic*"));
-}
-
-#[test]
-fn test_inline_code() {
-    let md = html_to_markdown("<p>Use <code>let x = 1;</code> here</p>", &default_opts());
-    assert!(md.contains("`let x = 1;`"));
-}
-
-#[test]
-fn test_inline_link() {
-    let md = html_to_markdown(
-        r#"<p><a href="https://example.com">Link</a></p>"#,
+fn generic_block_containers_flatten_into_document_children() {
+    let ast = parse_html_to_ast(
+        "<div><p>Alpha</p><section><p>Beta</p></section></div>",
         &default_opts(),
     );
-    assert!(md.contains("[Link](https://example.com)"));
+    let children = document_children(&ast);
+
+    assert_eq!(children.len(), 2);
+    assert_eq!(paragraph_raw(&children[0]), "Alpha");
+    assert_eq!(paragraph_raw(&children[1]), "Beta");
 }
 
 #[test]
-fn test_inline_link_with_title() {
-    let md = html_to_markdown(
-        r#"<p><a href="https://example.com" title="Title">Link</a></p>"#,
-        &default_opts(),
+fn unknown_block_wrappers_are_not_preserved() {
+    let ast = parse_html_to_ast("<widget><p>Hello</p></widget>", &default_opts());
+    let children = document_children(&ast);
+
+    assert_eq!(children.len(), 1);
+    assert_eq!(paragraph_raw(&children[0]), "Hello");
+}
+
+#[test]
+fn empty_and_whitespace_only_input_produce_empty_documents() {
+    let empty = parse_html_to_ast("", &default_opts());
+    let whitespace = parse_html_to_ast("   \n\t\n   ", &default_opts());
+    let empty_generic = parse_html_to_ast("<div></div><section></section>", &default_opts());
+
+    assert!(document_children(&empty).is_empty());
+    assert!(document_children(&whitespace).is_empty());
+    assert!(document_children(&empty_generic).is_empty());
+}
+
+#[test]
+fn malformed_html_and_orphan_end_tags_are_handled_gracefully() {
+    let unclosed = parse_html_to_ast("<p>Unclosed paragraph", &default_opts());
+    let orphan = parse_html_to_ast("<p>Hello</p></span>", &default_opts());
+
+    assert_eq!(
+        paragraph_raw(&document_children(&unclosed)[0]),
+        "Unclosed paragraph"
     );
-    assert!(md.contains(r#"[Link](https://example.com "Title")"#));
+    assert_eq!(paragraph_raw(&document_children(&orphan)[0]), "Hello");
 }
 
 #[test]
-fn test_inline_image() {
-    let md = html_to_markdown(
-        r#"<p><img src="test.png" alt="Alt text" /></p>"#,
-        &default_opts(),
-    );
-    assert!(md.contains("![Alt text](test.png)"));
-}
-
-#[test]
-fn test_inline_strikethrough() {
-    let md = html_to_markdown("<p><del>Deleted</del> text</p>", &default_opts());
-    assert!(md.contains("~~Deleted~~"));
-}
-
-#[test]
-fn test_inline_highlight() {
-    let md = html_to_markdown("<p><mark>Highlighted</mark> text</p>", &default_opts());
-    assert!(md.contains("==Highlighted=="));
-}
-
-#[test]
-fn test_inline_underline() {
-    let md = html_to_markdown("<p><u>Underlined</u> text</p>", &default_opts());
-    assert!(md.contains("++Underlined++"));
-}
-
-#[test]
-fn test_nested_inline() {
-    let md = html_to_markdown(
-        "<p><strong><em>Bold italic</em></strong></p>",
-        &default_opts(),
-    );
-    assert!(md.contains("***Bold italic***"));
-}
-
-// ============================================================================
-// Unknown Tag Handling Tests
-// ============================================================================
-
-#[test]
-fn test_unknown_tags_strip() {
+fn max_input_size_truncates_input_before_parsing() {
     let opts = HtmlParseOptions {
+        max_input_size: 12,
+        ..default_opts()
+    };
+    let ast = parse_html_to_ast("<p>hello</p><p>world</p>", &opts);
+    let children = document_children(&ast);
+
+    assert_eq!(children.len(), 1);
+    assert_eq!(paragraph_raw(&children[0]), "hello");
+}
+
+#[test]
+fn max_nesting_depth_limits_block_nesting() {
+    let unlimited = parse_html_to_ast(
+        "<blockquote><blockquote><p>Deep</p></blockquote></blockquote>",
+        &default_opts(),
+    );
+    let limited = parse_html_to_ast(
+        "<blockquote><blockquote><p>Deep</p></blockquote></blockquote>",
+        &HtmlParseOptions {
+            max_nesting_depth: 1,
+            ..default_opts()
+        },
+    );
+
+    match &document_children(&unlimited)[0] {
+        Block::BlockQuote { children } => {
+            assert_eq!(children.len(), 1);
+            assert!(matches!(children[0], Block::BlockQuote { .. }));
+        }
+        other => panic!("expected nested blockquote tree, got {other:?}"),
+    }
+
+    match &document_children(&limited)[0] {
+        Block::BlockQuote { children } => {
+            assert_eq!(children.len(), 1);
+            assert_eq!(paragraph_raw(&children[0]), "Deep");
+        }
+        other => panic!("expected flattened blockquote, got {other:?}"),
+    }
+}
+
+#[test]
+fn converts_inline_markdown_equivalents_exactly() {
+    assert_eq!(
+        html_to_markdown("<p><strong>Bold</strong> text</p>", &default_opts()),
+        "**Bold** text\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p><em>Italic</em> text</p>", &default_opts()),
+        "*Italic* text\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p>Use <code>let x = 1;</code> here</p>", &default_opts()),
+        "Use `let x = 1;` here\n"
+    );
+    assert_eq!(
+        html_to_markdown(
+            r#"<p><a href="https://example.com" title="Title">Link</a></p>"#,
+            &default_opts()
+        ),
+        "[Link](https://example.com \"Title\")\n"
+    );
+    assert_eq!(
+        html_to_markdown(
+            r#"<p><img src="test.png" alt="Alt text" /></p>"#,
+            &default_opts()
+        ),
+        "![Alt text](test.png)\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p><del>Deleted</del> text</p>", &default_opts()),
+        "~~Deleted~~ text\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p><mark>Highlighted</mark> text</p>", &default_opts()),
+        "==Highlighted== text\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p><u>Underlined</u> text</p>", &default_opts()),
+        "++Underlined++ text\n"
+    );
+    assert_eq!(
+        html_to_markdown(
+            "<p><strong><em>Bold italic</em></strong></p>",
+            &default_opts()
+        ),
+        "***Bold italic***\n"
+    );
+}
+
+#[test]
+fn converts_entities_breaks_and_whitespace_normalization_exactly() {
+    assert_eq!(
+        html_to_markdown("<p>&amp; &#65; &#x42;</p>", &default_opts()),
+        "& A B\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p>Line 1<br />Line 2</p>", &default_opts()),
+        "Line 1  \nLine 2\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p><strong>Hello   \n world</strong></p>", &default_opts()),
+        "**Hello world**\n"
+    );
+}
+
+#[test]
+fn unknown_inline_handling_controls_markdown_output() {
+    let strip = HtmlParseOptions {
         unknown_inline_handling: UnknownInlineHandling::StripTags,
         ..default_opts()
     };
-    let md = html_to_markdown("<p><sup>Superscript</sup> text</p>", &opts);
-    assert!(md.contains("Superscript"));
-    assert!(!md.contains("<sup>"));
-}
-
-#[test]
-fn test_unknown_tags_preserve() {
-    let opts = HtmlParseOptions {
+    let preserve = HtmlParseOptions {
         unknown_inline_handling: UnknownInlineHandling::PreserveAsHtml,
         ..default_opts()
     };
-    let md = html_to_markdown("<p><sup>Superscript</sup> text</p>", &opts);
-    assert!(md.contains("<sup>"));
-}
 
-// ============================================================================
-// Round-trip Tests (Markdown -> HTML -> Markdown)
-// ============================================================================
-
-#[test]
-fn test_roundtrip_paragraph() {
-    let original = "Hello world";
-    let html = parse(original, &ParseOptions::default());
-    let md = html_to_markdown(&html, &default_opts());
-    assert_eq!(md.trim(), original);
-}
-
-#[test]
-fn test_roundtrip_heading() {
-    let original = "# Heading 1";
-    let html = parse(original, &ParseOptions::default());
-    let md = html_to_markdown(&html, &default_opts());
-    assert_eq!(md.trim(), original);
-}
-
-#[test]
-fn test_roundtrip_bold() {
-    let original = "**Bold** text";
-    let html = parse(original, &ParseOptions::default());
-    let md = html_to_markdown(&html, &default_opts());
-    // Note: markdown rendering may differ slightly but semantic should be same
-    assert!(md.contains("**Bold**"));
-}
-
-#[test]
-fn test_roundtrip_code_block() {
-    let original = "```rust\nfn main() {}\n```";
-    let html = parse(original, &ParseOptions::default());
-    let md = html_to_markdown(&html, &default_opts());
-    assert!(md.contains("```rust"));
-    assert!(md.contains("fn main() {}"));
-}
-
-#[test]
-fn test_roundtrip_list() {
-    let original = "- Item 1\n- Item 2";
-    let html = parse(original, &ParseOptions::default());
-    let md = html_to_markdown(&html, &default_opts());
-    assert!(md.contains("- ") || md.contains("* "));
-    assert!(md.contains("Item 1"));
-    assert!(md.contains("Item 2"));
-}
-
-// ============================================================================
-// Edge Cases
-// ============================================================================
-
-#[test]
-fn test_empty_input() {
-    let ast = parse_html_to_ast("", &default_opts());
-    if let Block::Document { children } = ast {
-        assert!(children.is_empty());
-    }
-}
-
-#[test]
-fn test_whitespace_only() {
-    let ast = parse_html_to_ast("   \n\t\n   ", &default_opts());
-    if let Block::Document { children } = ast {
-        assert!(children.is_empty());
-    }
-}
-
-#[test]
-fn test_malformed_html() {
-    // Should not panic, should produce some output
-    let ast = parse_html_to_ast("<p>Unclosed paragraph", &default_opts());
-    if let Block::Document { children } = ast {
-        assert!(!children.is_empty());
-    }
-}
-
-#[test]
-fn test_nested_quotes() {
-    let html = "<blockquote><blockquote><p>Nested</p></blockquote></blockquote>";
-    let ast = parse_html_to_ast(html, &default_opts());
-    if let Block::Document { children } = ast
-        && let Block::BlockQuote { children } = &children[0]
-        && let Block::BlockQuote { children } = &children[0]
-    {
-        assert!(!children.is_empty());
-    }
-}
-
-#[test]
-fn test_html_entities() {
-    let md = html_to_markdown("<p>&amp; &lt; &gt;</p>", &default_opts());
-    // The parser should decode entities
-    assert!(md.contains("&") || md.contains("&amp;"));
-}
-
-#[test]
-fn test_hard_break() {
-    let md = html_to_markdown("<p>Line 1<br />Line 2</p>", &default_opts());
-    // Should contain hard break (two spaces + newline or just the text)
-    assert!(md.contains("Line 1") && md.contains("Line 2"));
+    assert_eq!(
+        html_to_markdown("<p><sup>Superscript</sup> text</p>", &strip),
+        "Superscript text\n"
+    );
+    assert_eq!(
+        html_to_markdown("<p><sup>Superscript</sup> text</p>", &preserve),
+        "<sup>Superscript</sup> text\n"
+    );
 }

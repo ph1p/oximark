@@ -35,15 +35,64 @@ function optionArgs(markdown, options) {
   ];
 }
 
-export function createParse(wasmParse) {
+export function createParse(wasmParse, wasmParseDefault = null) {
   return function parse(markdown, options) {
-    return wasmParse(...optionArgs(markdown, options));
+    const input = toStr(markdown);
+    if (options == null) {
+      if (wasmParseDefault) return wasmParseDefault(input);
+      return wasmParse(
+        input,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
+    }
+    return wasmParse(...optionArgs(input, options));
   };
 }
 
 export function createParseToAst(wasmParseToAst) {
   return function parseToAst(markdown, options) {
-    return wasmParseToAst(...optionArgs(markdown, options));
+    const input = toStr(markdown);
+    if (options == null) {
+      return wasmParseToAst(
+        input,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
+    }
+    return wasmParseToAst(...optionArgs(input, options));
   };
 }
 

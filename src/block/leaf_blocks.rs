@@ -137,11 +137,11 @@ pub(super) fn is_closing_fence(line: &[u8], fence_char: u8, fence_len: usize) ->
     if len == 0 {
         return false;
     }
+    let mut i = 0;
     let b0 = line[0];
     if b0 != b' ' && b0 != b'\t' && b0 != fence_char {
         return false;
     }
-    let mut i = 0;
     while i < len && i < 3 && line[i] == b' ' {
         i += 1;
     }
@@ -220,7 +220,7 @@ pub(super) fn parse_table_separator(line: &str) -> Option<SmallVec<[TableAlignme
     Some(alignments)
 }
 
-pub(super) fn parse_table_row(line: &str, num_cols: usize) -> SmallVec<[CompactString; 8]> {
+pub(crate) fn parse_table_row(line: &str, num_cols: usize) -> SmallVec<[CompactString; 8]> {
     let trimmed = trim_space_tab(line);
 
     let inner = trimmed.strip_prefix('|').unwrap_or(trimmed);
@@ -309,7 +309,15 @@ fn trim_space_tab(s: &str) -> &str {
 
 #[inline(always)]
 fn rest_is_blank(bytes: &[u8], from: usize) -> bool {
-    bytes[from..].iter().all(|&b| b == b' ' || b == b'\t')
+    let mut i = from;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b != b' ' && b != b'\t' {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 #[derive(Debug, Clone)]
@@ -331,7 +339,8 @@ pub(super) fn parse_list_marker(line: &str) -> Option<ListMarkerInfo> {
 
     if b0 == b'-' || b0 == b'*' || b0 == b'+' {
         if bytes.len() == 1 || bytes[1] == b' ' || bytes[1] == b'\t' {
-            let is_empty = bytes.len() <= 1 || rest_is_blank(bytes, 1);
+            let is_empty = bytes.len() <= 2
+                || ((bytes[2] == b' ' || bytes[2] == b'\t') && rest_is_blank(bytes, 2));
             return Some(ListMarkerInfo {
                 kind: ListKind::Bullet(b0),
                 marker_len: 1,
@@ -362,7 +371,9 @@ pub(super) fn parse_list_marker(line: &str) -> Option<ListMarkerInfo> {
                         Err(_) => return None,
                     }
                 };
-                let is_empty = i + 1 >= bytes.len() || rest_is_blank(bytes, i + 1);
+                let is_empty = i + 2 >= bytes.len()
+                    || ((bytes[i + 2] == b' ' || bytes[i + 2] == b'\t')
+                        && rest_is_blank(bytes, i + 2));
                 return Some(ListMarkerInfo {
                     kind: ListKind::Ordered(delim),
                     marker_len: i + 1,

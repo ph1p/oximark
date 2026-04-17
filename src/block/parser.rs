@@ -95,18 +95,18 @@ impl<'a> BlockParser<'a> {
                     let indent = ns_col - line.col_offset;
                     let is_blank = ns_byte == 0 && ns_off >= line.raw.len();
                     if is_blank {
+                        let has_leaf_above = num_open > i + 1
+                            && matches!(
+                                self.open[num_open - 1].block_type,
+                                OpenBlockType::Paragraph
+                                    | OpenBlockType::FencedCode(..)
+                                    | OpenBlockType::IndentedCode
+                                    | OpenBlockType::HtmlBlock { .. }
+                            );
                         if started_blank
                             && self.open[i].children.is_empty()
                             && self.open[i].content.is_empty()
-                            && !(i + 1..num_open).any(|j| {
-                                matches!(
-                                    self.open[j].block_type,
-                                    OpenBlockType::Paragraph
-                                        | OpenBlockType::FencedCode(..)
-                                        | OpenBlockType::IndentedCode
-                                        | OpenBlockType::HtmlBlock { .. }
-                                )
-                            })
+                            && !has_leaf_above
                         {
                             all_matched = false;
                             break;
@@ -254,6 +254,7 @@ impl<'a> BlockParser<'a> {
                         && let Some(alignments) = parse_table_separator(rest)
                     {
                         let num_cols = alignments.len();
+                        let paragraph_len = self.open[tip_idx].content.len();
                         let header = parse_table_row(&self.open[tip_idx].content, num_cols);
                         if header.len() == num_cols {
                             self.open.pop();
@@ -261,7 +262,7 @@ impl<'a> BlockParser<'a> {
                                 TableData {
                                     alignments,
                                     header,
-                                    rows: Vec::with_capacity(8),
+                                    rows: Vec::with_capacity((paragraph_len / 16).max(8)),
                                 },
                             ))));
                             return;
@@ -419,9 +420,8 @@ impl<'a> BlockParser<'a> {
                     } else {
                         None
                     };
-                    let has_unmatched_list = (matched..num_open).any(|idx| {
-                        matches!(self.open[idx].block_type, OpenBlockType::ListItem { .. })
-                    });
+                    let has_unmatched_list =
+                        self.last_list_item_idx.is_some_and(|idx| idx >= matched);
                     let should_break = (has_unmatched_list && marker.is_some())
                         || marker.as_ref().is_some_and(can_interrupt_paragraph);
                     if !should_break {
@@ -661,6 +661,7 @@ impl<'a> BlockParser<'a> {
         item.checked = checked;
         self.list_indent_sum += content_col;
         self.open.push(item);
+        self.last_list_item_idx = Some(self.open.len() - 1);
         rest_blank
     }
 
@@ -740,11 +741,11 @@ impl<'a> BlockParser<'a> {
             }),
             OpenBlockType::Table(td) => {
                 let num_cols = td.alignments.len();
-                let rows_flat: Vec<compact_str::CompactString> = td
-                    .rows
-                    .into_iter()
-                    .flat_map(|row| row.into_iter())
-                    .collect();
+                let total_cells = td.rows.iter().map(SmallVec::len).sum();
+                let mut rows_flat = Vec::with_capacity(total_cells);
+                for row in td.rows {
+                    rows_flat.extend(row);
+                }
                 Some(Block::Table(Box::new(crate::ast::TableData {
                     alignments: td.alignments.into_vec(),
                     num_cols,

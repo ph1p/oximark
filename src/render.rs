@@ -1,6 +1,8 @@
 use crate::ParseOptions;
 use crate::ast::{Block, ListKind, TableAlignment};
-use crate::html::{encode_url_escaped_into, escape_html_into, gfm_tag_is_filtered};
+use crate::html::{
+    collapse_and_escape_into, encode_url_escaped_into, escape_html_into, gfm_tag_is_filtered,
+};
 use crate::inline::{InlineBuffers, LinkRefMap, parse_inline_pass};
 
 #[inline(always)]
@@ -26,6 +28,13 @@ pub(crate) fn render_block(
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
 ) {
+    if let Block::Document { children } = block
+        && let [child] = children.as_slice()
+    {
+        render_single_child_doc(child, refs, out, opts, bufs);
+        return;
+    }
+
     let mut stack: Vec<Work<'_>> = Vec::with_capacity(32);
     stack.push(Work::Block(block));
 
@@ -37,13 +46,50 @@ pub(crate) fn render_block(
             }
             Work::TightBlock(block) => {
                 if let Block::Paragraph { raw } = block {
-                    parse_inline_pass(out, raw, refs, opts, bufs);
+                    push_inline_or_plain(out, raw, refs, opts, bufs);
                 } else {
                     render_one(block, refs, out, opts, bufs, &mut stack);
                 }
             }
             Work::Block(block) => {
                 render_one(block, refs, out, opts, bufs, &mut stack);
+            }
+        }
+    }
+}
+
+#[inline]
+fn render_single_child_doc(
+    child: &Block,
+    refs: &LinkRefMap,
+    out: &mut String,
+    opts: &ParseOptions,
+    bufs: &mut InlineBuffers,
+) {
+    match child {
+        Block::Paragraph { raw } => {
+            out.push_str("<p>");
+            parse_inline_pass(out, raw, refs, opts, bufs);
+            out.push_str("</p>\n");
+        }
+        _ => {
+            let mut stack = Vec::with_capacity(8);
+            stack.push(Work::Block(child));
+            while let Some(work) = stack.pop() {
+                match work {
+                    Work::CloseTag(tag) => out.push_str(tag),
+                    Work::TightListItem(block) => {
+                        render_tight_list_item(block, refs, out, opts, bufs, &mut stack);
+                    }
+                    Work::TightBlock(block) => {
+                        if let Block::Paragraph { raw } = block {
+                            push_inline_or_plain(out, raw, refs, opts, bufs);
+                        } else {
+                            render_one(block, refs, out, opts, bufs, &mut stack);
+                        }
+                    }
+                    Work::Block(block) => render_one(block, refs, out, opts, bufs, &mut stack),
+                }
             }
         }
     }
@@ -95,17 +141,16 @@ fn render_one<'a>(
             let tag = TAGS[l];
             out.push('<');
             out.push_str(tag);
-            let slug = if opts.enable_heading_ids || opts.enable_heading_anchors {
-                let s = heading_slug(raw);
-                if !s.is_empty() {
+            let mut slug = std::mem::take(&mut bufs.scratch);
+            let use_slug = opts.enable_heading_ids || opts.enable_heading_anchors;
+            if use_slug {
+                heading_slug_into(&mut slug, raw);
+                if !slug.is_empty() {
                     out.push_str(" id=\"");
-                    escape_html_into(out, &s);
+                    escape_html_into(out, &slug);
                     out.push('"');
                 }
-                s
-            } else {
-                String::new()
-            };
+            }
             out.push('>');
             parse_inline_pass(out, raw, refs, opts, bufs);
             if opts.enable_heading_anchors && !slug.is_empty() {
@@ -116,6 +161,7 @@ fn render_one<'a>(
             out.push_str("</");
             out.push_str(tag);
             out.push_str(">\n");
+            bufs.scratch = slug;
         }
         Block::Paragraph { raw } => {
             out.push_str("<p>");
@@ -229,35 +275,21 @@ fn render_one<'a>(
             if num_rows > 0 {
                 out.push_str("<tbody>\n");
                 if all_none {
-                    for r in 0..num_rows {
+                    for row in td.rows.chunks_exact(num_cols) {
                         out.push_str("<tr>\n");
-                        for c in 0..num_cols {
+                        for cell in row {
                             out.push_str("<td>");
-                            parse_inline_pass(
-                                out,
-                                td.rows[r * num_cols + c].as_str(),
-                                refs,
-                                opts,
-                                bufs,
-                            );
+                            push_inline_or_plain(out, cell.as_str(), refs, opts, bufs);
                             out.push_str("</td>\n");
                         }
                         out.push_str("</tr>\n");
                     }
                 } else {
-                    for r in 0..num_rows {
+                    for row in td.rows.chunks_exact(num_cols) {
                         out.push_str("<tr>\n");
-                        for c in 0..num_cols {
+                        for (c, cell) in row.iter().enumerate() {
                             let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
-                            render_table_cell(
-                                out,
-                                td.rows[r * num_cols + c].as_str(),
-                                "td",
-                                align,
-                                refs,
-                                opts,
-                                bufs,
-                            );
+                            render_table_cell(out, cell.as_str(), "td", align, refs, opts, bufs);
                         }
                         out.push_str("</tr>\n");
                     }
@@ -269,27 +301,14 @@ fn render_one<'a>(
     }
 }
 
-/// Returns `true` if the string contains no characters requiring HTML escaping
-/// or inline parsing (no `<`, `>`, `&`, `"`, or control chars).
+/// Returns `true` if `s` needs no inline parsing or HTML escaping.
+/// Uses the pre-built scan_table (same table as `parse_inline_pass`) so we
+/// do a single O(n) pass instead of multiple memchr SIMD scans.
 #[inline(always)]
-fn is_trivially_plain(s: &str) -> bool {
-    let bytes = s.as_bytes();
-    // Fast SIMD check for the most common HTML-special characters.
-    if memchr::memchr3(b'<', b'>', b'&', bytes).is_some() {
-        return false;
-    }
-    if memchr::memchr(b'"', bytes).is_some() {
-        return false;
-    }
-    // Check for control characters (bytes < 0x20) using memchr2 on the two
-    // most common ones (\t=0x09, \n=0x0a), then a scalar scan for the rest.
-    // In practice control chars other than \t/\n are extremely rare in table
-    // cells and heading content, so the memchr2 early-exit covers almost all
-    // cases without a full linear scan.
-    if memchr::memchr2(b'\t', b'\n', bytes).is_some() {
-        return false;
-    }
-    bytes.iter().all(|&b| b >= b' ')
+fn is_trivially_plain(s: &str, scan_table: &[u8; 256]) -> bool {
+    s.as_bytes()
+        .iter()
+        .all(|&b| scan_table[b as usize] == 0 && b >= b' ')
 }
 
 /// For trivially plain text, push directly; otherwise run the full inline pass.
@@ -301,8 +320,12 @@ fn push_inline_or_plain(
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
 ) {
-    if is_trivially_plain(raw) {
-        out.push_str(raw);
+    if is_trivially_plain(raw, &bufs.scan_table) {
+        if opts.collapse_whitespace {
+            collapse_and_escape_into(out, raw);
+        } else {
+            out.push_str(raw);
+        }
     } else {
         parse_inline_pass(out, raw, refs, opts, bufs);
     }
@@ -429,7 +452,7 @@ fn render_nested_tight_list<'a>(
         for (idx, child) in item_children.iter().enumerate() {
             match child {
                 Block::Paragraph { raw } => {
-                    parse_inline_pass(out, raw, inline.refs, inline.opts, bufs);
+                    push_inline_or_plain(out, raw, inline.refs, inline.opts, bufs);
                     prev_was_para = true;
                 }
                 _ => {
@@ -475,7 +498,7 @@ fn render_tight_list_item<'a>(
     if children.len() == 1
         && let Block::Paragraph { raw } = &children[0]
     {
-        parse_inline_pass(out, raw, refs, opts, bufs);
+        push_inline_or_plain(out, raw, refs, opts, bufs);
         out.push_str("</li>\n");
         return;
     }
@@ -485,7 +508,7 @@ fn render_tight_list_item<'a>(
     for (idx, child) in children.iter().enumerate() {
         match child {
             Block::Paragraph { raw } => {
-                parse_inline_pass(out, raw, refs, opts, bufs);
+                push_inline_or_plain(out, raw, refs, opts, bufs);
                 prev_was_para = true;
             }
             _ => {
@@ -530,7 +553,7 @@ fn render_table_cell(
                 TableAlignment::None => {}
             }
             out.push('>');
-            parse_inline_pass(out, content, refs, opts, bufs);
+            push_inline_or_plain(out, content, refs, opts, bufs);
             out.push_str("</");
             out.push_str(tag);
             out.push_str(">\n");
@@ -538,16 +561,17 @@ fn render_table_cell(
         }
     };
     out.push_str(open);
-    parse_inline_pass(out, content, refs, opts, bufs);
+    push_inline_or_plain(out, content, refs, opts, bufs);
     out.push_str(close);
 }
 
 /// Generate a URL-safe slug from heading raw markdown text.
 /// Strips markdown syntax, lowercases, replaces spaces/hyphens/dots with `-`.
 /// Uses inline buffer for short slugs to avoid heap allocation.
-fn heading_slug(raw: &str) -> String {
+pub(crate) fn heading_slug_into(slug: &mut String, raw: &str) {
     let bytes = raw.as_bytes();
     let len = bytes.len();
+    slug.clear();
 
     // Fast path: check if heading is already slug-safe (common for simple headings).
     // A slug-safe heading has only ASCII alphanumerics and dashes (no leading/trailing dash).
@@ -578,22 +602,22 @@ fn heading_slug(raw: &str) -> String {
                 }
             }
             if all_lower {
-                return raw.to_string();
+                slug.push_str(raw);
+                return;
             }
-            // Lowercase in place
-            let mut slug = raw.to_string();
+            slug.push_str(raw);
             // SAFETY: lowercasing ASCII preserves UTF-8 validity
             unsafe {
                 slug.as_mut_vec()
                     .iter_mut()
                     .for_each(|b| *b = b.to_ascii_lowercase())
             };
-            return slug;
+            return;
         }
     }
 
     // Slow path: process character by character
-    let mut slug = String::with_capacity(len);
+    slug.reserve(len.saturating_sub(slug.capacity()));
     let mut i = 0;
     let mut prev_dash = true; // start true to avoid leading dash
 
@@ -664,5 +688,10 @@ fn heading_slug(raw: &str) -> String {
     while slug.ends_with('-') {
         slug.pop();
     }
+}
+
+pub fn benchmark_heading_slug(raw: &str) -> String {
+    let mut slug = String::with_capacity(raw.len());
+    heading_slug_into(&mut slug, raw);
     slug
 }

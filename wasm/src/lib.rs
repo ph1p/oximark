@@ -100,6 +100,11 @@ pub fn parse(
     )
 }
 
+#[wasm_bindgen(js_name = "parseDefault")]
+pub fn parse_default(markdown: &str) -> String {
+    ironmark_parse(markdown, &ParseOptions::default())
+}
+
 #[wasm_bindgen(js_name = "parseToAst")]
 pub fn parse_to_ast(
     markdown: &str,

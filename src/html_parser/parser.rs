@@ -182,47 +182,63 @@ impl<'a> HtmlParser<'a> {
             // Block elements
             "p" => {
                 self.flush_text();
-                self.stack.push(OpenBlock::new("p"));
+                if self.can_open_block() {
+                    self.stack.push(OpenBlock::new("p"));
+                }
             }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 self.flush_text();
-                self.stack.push(OpenBlock::new(name));
+                if self.can_open_block() {
+                    self.stack.push(OpenBlock::new(name));
+                }
             }
             "pre" => {
                 self.flush_text();
-                self.stack.push(OpenBlock::new("pre"));
+                if self.can_open_block() {
+                    self.stack.push(OpenBlock::new("pre"));
+                }
             }
             "blockquote" => {
                 self.flush_text();
-                self.stack.push(OpenBlock::new("blockquote"));
+                if self.can_open_block() {
+                    self.stack.push(OpenBlock::new("blockquote"));
+                }
             }
             "ul" => {
                 self.flush_text();
-                let mut block = OpenBlock::new("ul");
-                block.list_kind = Some(ListKind::Bullet(b'-'));
-                self.stack.push(block);
+                if self.can_open_block() {
+                    let mut block = OpenBlock::new("ul");
+                    block.list_kind = Some(ListKind::Bullet(b'-'));
+                    self.stack.push(block);
+                }
             }
             "ol" => {
                 self.flush_text();
-                let mut block = OpenBlock::new("ol");
-                let start = find_attr(attrs, "start")
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(1);
-                block.list_kind = Some(ListKind::Ordered(b'.'));
-                block.list_start = start;
-                self.stack.push(block);
+                if self.can_open_block() {
+                    let mut block = OpenBlock::new("ol");
+                    let start = find_attr(attrs, "start")
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(1);
+                    block.list_kind = Some(ListKind::Ordered(b'.'));
+                    block.list_start = start;
+                    self.stack.push(block);
+                }
             }
             "li" => {
                 self.flush_text();
-                let block = OpenBlock::new("li");
-                // Check for task list checkbox in content (handled later)
-                self.stack.push(block);
+                if self.can_open_block() {
+                    let block = OpenBlock::new("li");
+                    // Check for task list checkbox in content (handled later)
+                    self.stack.push(block);
+                }
             }
             "table" => {
                 self.flush_text();
-                let mut block = OpenBlock::new("table");
-                block.table_state = Some(TableState::default());
-                self.stack.push(block);
+                if self.can_open_block() {
+                    let mut block = OpenBlock::new("table");
+                    block.table_state = Some(TableState::default());
+                    self.stack.push(block);
+                }
             }
             "thead" => {
                 if let Some(table) = self.find_table_mut() {
@@ -253,7 +269,9 @@ impl<'a> HtmlParser<'a> {
                     // Limit columns
                     table.alignments.push(alignment);
                 }
-                self.stack.push(OpenBlock::new(name));
+                if self.can_open_block() {
+                    self.stack.push(OpenBlock::new(name));
+                }
             }
             "hr" => {
                 self.flush_text();
@@ -283,7 +301,9 @@ impl<'a> HtmlParser<'a> {
             "div" | "section" | "article" | "main" | "header" | "footer" | "nav" | "aside" => {
                 // Treat as generic block container
                 self.flush_text();
-                self.stack.push(OpenBlock::new(name));
+                if self.can_open_block() {
+                    self.stack.push(OpenBlock::new(name));
+                }
             }
             "input" => {
                 // Check for task list checkbox
@@ -406,6 +426,10 @@ impl<'a> HtmlParser<'a> {
 
     fn is_current(&self, tag: &str) -> bool {
         self.stack.last().map(|b| b.tag == tag).unwrap_or(false)
+    }
+
+    fn can_open_block(&self) -> bool {
+        self.stack.len().saturating_sub(1) < self.options.max_nesting_depth
     }
 
     fn is_inside(&self, tag: &str) -> bool {

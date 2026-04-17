@@ -252,18 +252,20 @@ impl<'a> InlineScanner<'a> {
         let after_open = self.pos;
 
         // If no backtick run of this length exists *after* the opener, bail immediately.
-        let last_pos = if open_count < 64 {
-            self.backtick_last[open_count]
-        } else {
-            self.backtick_last_long
-                .as_ref()
-                .and_then(|m| m.get(&(open_count as u32)).copied())
-                .unwrap_or(u32::MAX)
-        };
-        if last_pos < after_open as u32 {
-            self.items.push(InlineItem::TextRange(start, after_open));
-            self.pos = after_open;
-            return;
+        if self.has_backtick_index {
+            let last_pos = if open_count < 64 {
+                self.backtick_last[open_count]
+            } else {
+                self.backtick_last_long
+                    .as_ref()
+                    .and_then(|m| m.get(&(open_count as u32)).copied())
+                    .unwrap_or(u32::MAX)
+            };
+            if last_pos < after_open as u32 {
+                self.items.push(InlineItem::TextRange(start, after_open));
+                self.pos = after_open;
+                return;
+            }
         }
 
         loop {
@@ -388,7 +390,7 @@ impl<'a> InlineScanner<'a> {
         delim_bottom: usize,
         opener_item: usize,
         dest: LinkDest,
-        title: Option<Rc<str>>,
+        title: Option<LinkTitle>,
     ) {
         if !is_image {
             for j in 0..bi {
@@ -417,6 +419,7 @@ impl<'a> InlineScanner<'a> {
     }
 
     pub(super) fn process_emphasis(&mut self, stack_bottom: usize) {
+        let mut openers_bottom = [stack_bottom; 6];
         let mut closer_di = stack_bottom;
         while closer_di < self.delims.len() {
             let ci = self.delims[closer_di];
@@ -442,9 +445,10 @@ impl<'a> InlineScanner<'a> {
                 continue;
             }
 
+            let bottom = openers_bottom[em_openers_index(ckind, ccount)];
             let mut found: Option<(usize, u16)> = None;
             let mut odi = closer_di;
-            while odi > stack_bottom {
+            while odi > bottom {
                 odi -= 1;
                 let oi = self.delims[odi];
                 if oi == usize::MAX {
@@ -478,6 +482,10 @@ impl<'a> InlineScanner<'a> {
             }
 
             let Some((opener_di, ocount)) = found else {
+                openers_bottom[em_openers_index(ckind, ccount)] = closer_di;
+                if !ccan_open {
+                    self.delims[closer_di] = usize::MAX;
+                }
                 closer_di += 1;
                 continue;
             };

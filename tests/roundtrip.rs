@@ -19,6 +19,8 @@ fn html_opts() -> HtmlParseOptions {
     HtmlParseOptions::default()
 }
 
+const README_FIXTURE: &str = include_str!("../README.md");
+
 // ============================================================================
 // Markdown -> HTML -> Markdown Round-trip Tests
 // ============================================================================
@@ -417,6 +419,20 @@ mod ast_roundtrip {
         assert!(md.contains("|"));
         assert!(md.contains("A"));
         assert!(md.contains("B"));
+    }
+
+    #[test]
+    fn readme_md_html_md_ast_md() {
+        let html = parse(README_FIXTURE, &md_opts());
+        let normalized_md = html_to_markdown(&html, &html_opts());
+        let ast = parse_to_ast(&normalized_md, &md_opts());
+        let final_md = render_markdown(&ast);
+        let reparsed_ast = parse_to_ast(&final_md, &md_opts());
+
+        assert_eq!(reparsed_ast, ast);
+        assert!(final_md.contains("# ironmark"));
+        assert!(final_md.contains("## Configuration"));
+        assert!(final_md.contains("### HTML to Markdown"));
     }
 }
 

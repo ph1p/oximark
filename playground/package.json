@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "pnpm --dir .. build",
+    "predev": "pnpm --dir .. build:dev",
     "build": "tsc && vite build",
     "dev": "vite",
     "preview": "vite preview"
@@ -36,7 +38,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "tailwindcss": "^4.2.2",
-    "typescript": "~6.0.2",
+    "typescript": "~6.0.3",
     "vite": "^8.0.8"
   },
   "pnpm": {

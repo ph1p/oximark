@@ -197,20 +197,29 @@ export function writePlaygroundData(latest = null) {
           if (rec.rust) latestByRuntime.rust = { sections: rec.rust };
           if (rec.bun) latestByRuntime.bun = { sections: rec.bun };
         }
-        const wasmNs = rec.wasm
+        const wasmBench = rec.wasm
           ?.find((s) => s.title === "CommonMark Spec")
-          ?.benches?.find((b) => b.name === "spec (all examples)")?.results?.ironmark?.median_ns;
-        const bunNs = rec.bun
+          ?.benches?.find((b) => b.name === "spec (all examples)");
+        const bunBench = rec.bun
           ?.find((s) => s.title === "CommonMark Spec")
-          ?.benches?.find((b) => b.name === "spec (all examples)")?.results?.ironmark?.median_ns;
-        const rustNs = rec.rust
+          ?.benches?.find((b) => b.name === "spec (all examples)");
+        const rustBench = rec.rust
           ?.find((s) => s.title === "CommonMark Spec")
-          ?.benches?.find((b) => b.name === "commonmark_spec")?.results?.ironmark?.median_ns;
+          ?.benches?.find((b) => b.name === "commonmark_spec");
+        const wasmNs = wasmBench?.results?.ironmark?.median_ns;
+        const bunNs = bunBench?.results?.ironmark?.median_ns;
+        const rustNs = rustBench?.results?.ironmark?.median_ns;
         if (!wasmNs && !bunNs && !rustNs) return null;
         const point = { timestamp: rec.timestamp ?? f.slice(0, 19) };
         if (wasmNs) point.ironmark_wasm_ns = wasmNs;
         if (bunNs) point.ironmark_bun_ns = bunNs;
         if (rustNs) point.ironmark_rust_ns = rustNs;
+        const wasmFastest = fastestMedian(wasmBench);
+        const bunFastest = fastestMedian(bunBench);
+        const rustFastest = fastestMedian(rustBench);
+        if (wasmNs && wasmFastest) point.ironmark_wasm_ratio = wasmNs / wasmFastest;
+        if (bunNs && bunFastest) point.ironmark_bun_ratio = bunNs / bunFastest;
+        if (rustNs && rustFastest) point.ironmark_rust_ratio = rustNs / rustFastest;
         return point;
       } catch {
         return null;
@@ -228,4 +237,12 @@ export function writePlaygroundData(latest = null) {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(data, null, 2));
   console.log(`Playground data written to playground/public/benchmark-data.json`);
+}
+
+function fastestMedian(bench) {
+  if (!bench?.results) return undefined;
+  const values = Object.values(bench.results)
+    .map((r) => r?.median_ns)
+    .filter((v) => typeof v === "number" && v > 0);
+  return values.length > 0 ? Math.min(...values) : undefined;
 }

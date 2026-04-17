@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BenchEntry, BenchmarkData, BenchSection, TrendPoint } from "./types";
 
 // ─── Parser display config ───────────────────────────────────────────────────
@@ -148,18 +148,30 @@ function BenchSectionView({ section }: { section: BenchSection }) {
 
 // ─── TrendChart ──────────────────────────────────────────────────────────────
 
-const TREND_SERIES: { key: keyof TrendPoint; label: string; color: string }[] = [
+const ABSOLUTE_TREND_SERIES: { key: keyof TrendPoint; label: string; color: string }[] = [
   { key: "ironmark_wasm_ns", label: "WASM (Node)", color: "#e8590c" },
   { key: "ironmark_bun_ns", label: "Bun", color: "#f4d9a0" },
   { key: "ironmark_rust_ns", label: "Native Rust", color: "#1971c2" },
 ];
 
-function TrendChart({ trend }: { trend: TrendPoint[] }) {
+const RELATIVE_TREND_SERIES: { key: keyof TrendPoint; label: string; color: string }[] = [
+  { key: "ironmark_wasm_ratio", label: "WASM (Node)", color: "#e8590c" },
+  { key: "ironmark_bun_ratio", label: "Bun", color: "#f4d9a0" },
+  { key: "ironmark_rust_ratio", label: "Native Rust", color: "#1971c2" },
+];
+
+type TrendMode = "absolute" | "relative";
+
+function fmtRatio(v: number): string {
+  return `${v.toFixed(2)}x`;
+}
+
+function TrendChart({ trend, mode }: { trend: TrendPoint[]; mode: TrendMode }) {
   if (trend.length < 2) {
     return (
       <p className="text-sm text-zinc-500 text-center py-12">
         Run <code className="text-zinc-400">pnpm bench</code> multiple times to see a performance
-        trend.
+        trend. Lower is faster.
       </p>
     );
   }
@@ -170,8 +182,9 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
 
+  const series = mode === "absolute" ? ABSOLUTE_TREND_SERIES : RELATIVE_TREND_SERIES;
   const allValues = trend.flatMap((t) =>
-    TREND_SERIES.map((s) => t[s.key] as number | undefined).filter((v): v is number => v != null),
+    series.map((s) => t[s.key] as number | undefined).filter((v): v is number => v != null),
   );
   const minV = Math.min(...allValues);
   const maxV = Math.max(...allValues);
@@ -180,7 +193,7 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
   const px = (i: number) => PAD.left + (i / (trend.length - 1)) * chartW;
   const py = (v: number) => PAD.top + chartH - ((v - minV) / range) * chartH;
 
-  const activeSeries = TREND_SERIES.filter((s) => trend.some((t) => t[s.key] != null));
+  const activeSeries = series.filter((s) => trend.some((t) => t[s.key] != null));
 
   return (
     <div className="space-y-3">
@@ -220,7 +233,7 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
             strokeDasharray="3,3"
           />
           <text x={PAD.left - 6} y={PAD.top + 4} textAnchor="end" fill="#666" fontSize="10">
-            {fmtNs(maxV)}
+            {mode === "absolute" ? fmtNs(maxV) : fmtRatio(maxV)}
           </text>
           <text
             x={PAD.left - 6}
@@ -229,7 +242,7 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
             fill="#666"
             fontSize="10"
           >
-            {fmtNs(minV)}
+            {mode === "absolute" ? fmtNs(minV) : fmtRatio(minV)}
           </text>
 
           {activeSeries.map((s) => {
@@ -259,7 +272,8 @@ function TrendChart({ trend }: { trend: TrendPoint[] }) {
               return (
                 <circle key={`${s.key}-${i}`} cx={px(i)} cy={py(v)} r="3.5" fill={s.color}>
                   <title>
-                    {fmtDate(t.timestamp)} · {s.label}: {fmtNs(v)}
+                    {fmtDate(t.timestamp)} · {s.label}:{" "}
+                    {mode === "absolute" ? fmtNs(v) : `${fmtRatio(v)} vs fastest`}
                   </title>
                 </circle>
               );
@@ -381,12 +395,23 @@ function RankingOverview({ latest }: { latest: BenchmarkData["latest"] }) {
 // ─── BenchmarkPage ───────────────────────────────────────────────────────────
 
 type InnerTab = "latest" | "trend";
+type RuntimeFilter = "all" | "wasm" | "bun" | "rust";
+type LatestGroup = {
+  runtime: Exclude<RuntimeFilter, "all">;
+  heading: string;
+  note?: string;
+  section: BenchSection;
+};
 
 export function BenchmarkPage() {
   const [data, setData] = useState<BenchmarkData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [innerTab, setInnerTab] = useState<InnerTab>("latest");
+  const [trendMode, setTrendMode] = useState<TrendMode>("absolute");
+  const [query, setQuery] = useState("");
+  const [runtimeFilter, setRuntimeFilter] = useState<RuntimeFilter>("all");
+  const [parserFilter, setParserFilter] = useState<string>("all");
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}benchmark-data.json`)
@@ -395,6 +420,88 @@ export function BenchmarkPage() {
       .catch(() => setError("No benchmark data found. Run pnpm bench to generate it."))
       .finally(() => setLoading(false));
   }, []);
+
+  const latestGroups = useMemo<LatestGroup[]>(() => {
+    if (!data) return [];
+    const groups: LatestGroup[] = [];
+    if (data.latest.wasm) {
+      groups.push(
+        ...data.latest.wasm.sections.map((section) => ({
+          runtime: "wasm" as const,
+          heading: "WASM · Node.js",
+          section,
+        })),
+      );
+    }
+    if (data.latest.bun) {
+      groups.push(
+        ...data.latest.bun.sections.map((section) => ({
+          runtime: "bun" as const,
+          heading: "WASM · Bun runtime",
+          note: "(+ Bun built-in native)",
+          section,
+        })),
+      );
+    }
+    if (data.latest.rust) {
+      groups.push(
+        ...data.latest.rust.sections.map((section) => ({
+          runtime: "rust" as const,
+          heading: "Native Rust",
+          section,
+        })),
+      );
+    }
+    return groups;
+  }, [data]);
+
+  const parserOptions = useMemo(() => {
+    const libs = new Set<string>();
+    for (const group of latestGroups) {
+      for (const bench of group.section.benches) {
+        for (const [lib, result] of Object.entries(bench.results)) {
+          if (result.median_ns > 0) libs.add(lib);
+        }
+      }
+    }
+    return Array.from(libs).sort((a, b) => (LABELS[a] ?? a).localeCompare(LABELS[b] ?? b));
+  }, [latestGroups]);
+
+  const filteredGroups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return latestGroups
+      .filter((group) => runtimeFilter === "all" || group.runtime === runtimeFilter)
+      .map((group) => ({
+        ...group,
+        section: {
+          ...group.section,
+          benches: group.section.benches.filter((bench) => {
+            const parserMatch =
+              parserFilter === "all" ||
+              Object.entries(bench.results).some(
+                ([lib, result]) => lib === parserFilter && result.median_ns > 0,
+              );
+            if (!parserMatch) return false;
+            if (!q) return true;
+            const haystack = [
+              group.heading,
+              group.section.title,
+              bench.name,
+              ...Object.keys(bench.results).map((lib) => LABELS[lib] ?? lib),
+            ]
+              .join(" ")
+              .toLowerCase();
+            return haystack.includes(q);
+          }),
+        },
+      }))
+      .filter((group) => group.section.benches.length > 0);
+  }, [latestGroups, parserFilter, query, runtimeFilter]);
+
+  const filteredBenchCount = filteredGroups.reduce(
+    (sum, group) => sum + group.section.benches.length,
+    0,
+  );
 
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-950 text-zinc-100">
@@ -440,37 +547,93 @@ export function BenchmarkPage() {
             {innerTab === "latest" && (
               <div className="space-y-10">
                 <RankingOverview latest={data.latest} />
-                {data.latest.wasm && (
-                  <div className="space-y-5">
+                <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      WASM · Node.js
+                      Filter Benchmarks
                     </h3>
-                    {data.latest.wasm.sections.map((s) => (
-                      <BenchSectionView key={s.title} section={s} />
+                    <span className="text-xs text-zinc-600">
+                      {filteredBenchCount} benchmark{filteredBenchCount === 1 ? "" : "s"} shown
+                    </span>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_auto_auto]">
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search by benchmark, section, runtime, or parser"
+                      className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-zinc-600"
+                    />
+                    <select
+                      value={runtimeFilter}
+                      onChange={(e) => setRuntimeFilter(e.target.value as RuntimeFilter)}
+                      className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-zinc-600"
+                    >
+                      <option value="all">All runtimes</option>
+                      <option value="wasm">WASM · Node</option>
+                      <option value="bun">Bun</option>
+                      <option value="rust">Rust</option>
+                    </select>
+                    <select
+                      value={parserFilter}
+                      onChange={(e) => setParserFilter(e.target.value)}
+                      className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300 outline-none focus:border-zinc-600"
+                    >
+                      <option value="all">All parsers</option>
+                      {parserOptions.map((lib) => (
+                        <option key={lib} value={lib}>
+                          {LABELS[lib] ?? lib}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {(["all", "wasm", "bun", "rust"] as RuntimeFilter[]).map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => setRuntimeFilter(value)}
+                        className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          runtimeFilter === value
+                            ? "border-zinc-500 bg-zinc-800 text-zinc-100"
+                            : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {value === "all"
+                          ? "All"
+                          : value === "wasm"
+                            ? "WASM · Node"
+                            : value === "bun"
+                              ? "Bun"
+                              : "Rust"}
+                      </button>
                     ))}
                   </div>
-                )}
-                {data.latest.bun && (
-                  <div className="space-y-5">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      WASM · Bun runtime{" "}
-                      <span className="normal-case font-normal text-zinc-600">
-                        (+ Bun built-in native)
-                      </span>
-                    </h3>
-                    {data.latest.bun.sections.map((s) => (
-                      <BenchSectionView key={s.title} section={s} />
-                    ))}
-                  </div>
-                )}
-                {data.latest.rust && (
-                  <div className="space-y-5">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      Native Rust
-                    </h3>
-                    {data.latest.rust.sections.map((s) => (
-                      <BenchSectionView key={s.title} section={s} />
-                    ))}
+                </div>
+                {filteredGroups.map((group, index) => {
+                  const showHeading =
+                    index === 0 ||
+                    filteredGroups[index - 1].heading !== group.heading ||
+                    filteredGroups[index - 1].note !== group.note;
+                  return (
+                    <div key={`${group.runtime}:${group.section.title}`} className="space-y-5">
+                      {showHeading && (
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                          {group.heading}{" "}
+                          {group.note && (
+                            <span className="normal-case font-normal text-zinc-600">
+                              {group.note}
+                            </span>
+                          )}
+                        </h3>
+                      )}
+                      <BenchSectionView section={group.section} />
+                    </div>
+                  );
+                })}
+                {filteredBenchCount === 0 && (
+                  <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4">
+                    <p className="text-sm text-zinc-400">
+                      No benchmarks match the current filters.
+                    </p>
                   </div>
                 )}
                 {!data.latest.rust && (
@@ -485,10 +648,32 @@ export function BenchmarkPage() {
             {/* Trend tab */}
             {innerTab === "trend" && (
               <div className="space-y-4">
+                <div className="flex gap-2 flex-wrap">
+                  {(
+                    [
+                      ["absolute", "Absolute Time"],
+                      ["relative", "Vs Fastest"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setTrendMode(value)}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        trendMode === value
+                          ? "border-zinc-500 bg-zinc-800 text-zinc-100"
+                          : "border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <p className="text-xs text-zinc-500">
-                  ironmark — CommonMark Spec median parse time across runs
+                  {trendMode === "absolute"
+                    ? "ironmark — CommonMark Spec median parse time across runs. Lower is faster; this is absolute time."
+                    : "ironmark — CommonMark Spec slowdown vs the fastest competitor in the same runtime. 1.00x means ironmark was fastest."}
                 </p>
-                <TrendChart trend={data.trend} />
+                <TrendChart trend={data.trend} mode={trendMode} />
               </div>
             )}
           </>

@@ -4,7 +4,7 @@ mod scanner;
 
 use crate::ParseOptions;
 use crate::entities;
-use crate::html::escape_html_into;
+use crate::html::{encode_url_escaped_into, escape_html_into, is_dangerous_url};
 use rustc_hash::FxHashMap;
 use std::borrow::Cow;
 use std::rc::Rc;
@@ -99,6 +99,11 @@ pub(crate) fn normalize_reference_label(label: &str) -> Cow<'_, str> {
 
 const SPECIAL_ANY: u8 = 1;
 const SPECIAL_COMPLEX: u8 = 2;
+const SCAN_FULL: u8 = 1;
+const SCAN_IS_BACKTICK: u8 = 2;
+const SCAN_EMPH: u8 = 4;
+const SCAN_BREAK: u8 = 8;
+const SCAN_ESCAPE: u8 = 16;
 
 static SPECIAL: [u8; 256] = {
     let mut t = [0u8; 256];
@@ -131,62 +136,15 @@ pub(crate) fn parse_inline_pass(
     bufs: &mut InlineBuffers,
 ) {
     let bytes = raw.as_bytes();
-
-    // Single-pass classification for the common "mostly plain text" case.
-    // This avoids constructing/scanning full inline state when no markdown syntax applies.
-    //
-    // We use a 256-byte lookup table where each byte encodes what it triggers:
-    //   bit 0 (SCAN_FULL)     — requires full inline scanner
-    //   bit 1 (SCAN_BACKTICK) — requires full scanner AND has backtick
-    //   bit 2 (SCAN_EMPH)     — emphasis (* or _)
-    //   bit 3 (SCAN_BREAK)    — line break (\ or \n)
-    //   bit 4 (SCAN_ESCAPE)   — HTML-escape needed (> or ")
-    const SCAN_FULL: u8 = 1;
-    const SCAN_IS_BACKTICK: u8 = 2; // set only for backtick; always paired with SCAN_FULL
-    const SCAN_EMPH: u8 = 4;
-    const SCAN_BREAK: u8 = 8;
-    const SCAN_ESCAPE: u8 = 16;
-
-    // Build the table incorporating enabled extensions. This executes once per
-    // parse_inline_pass call but touches only ~20 entries and lives on the stack.
-    let scan_table: [u8; 256] = {
-        let mut t = [0u8; 256];
-        t[b'*' as usize] = SCAN_EMPH;
-        t[b'_' as usize] = SCAN_EMPH;
-        t[b'\\' as usize] = SCAN_BREAK;
-        t[b'\n' as usize] = SCAN_BREAK;
-        t[b'>' as usize] = SCAN_ESCAPE;
-        t[b'"' as usize] = SCAN_ESCAPE;
-        t[b'`' as usize] = SCAN_FULL | SCAN_IS_BACKTICK;
-        t[b'!' as usize] = SCAN_FULL;
-        t[b'[' as usize] = SCAN_FULL;
-        t[b']' as usize] = SCAN_FULL;
-        t[b'<' as usize] = SCAN_FULL;
-        t[b'&' as usize] = SCAN_FULL;
-        if opts.enable_strikethrough {
-            t[b'~' as usize] = SCAN_FULL;
-        }
-        if opts.enable_highlight {
-            t[b'=' as usize] = SCAN_FULL;
-        }
-        if opts.enable_underline {
-            t[b'+' as usize] = SCAN_FULL;
-        }
-        if opts.enable_autolink {
-            t[b':' as usize] = SCAN_FULL;
-            t[b'@' as usize] = SCAN_FULL;
-        }
-        if opts.enable_latex_math {
-            t[b'$' as usize] = SCAN_FULL;
-        }
-        t
-    };
+    let scan_table = &bufs.scan_table;
 
     let mut has_emphasis = false;
     let mut has_breaks = false;
     let mut needs_html_escape = false;
     let mut requires_full_inline = false;
-    let mut has_backtick = false;
+    let mut backtick_hint = 0u8;
+    let mut rescan_from = bytes.len();
+    let mut full_only_backticks = true;
 
     // Fast scan: process 8 bytes at a time, ORing flags together. If no byte
     // triggers SCAN_FULL|SCAN_BREAK|SCAN_EMPH|SCAN_ESCAPE in a chunk we skip it cheaply.
@@ -209,11 +167,17 @@ pub(crate) fn parse_inline_pass(
             continue;
         }
         // Something interesting in this chunk — process per byte.
-        for &b in chunk {
+        for (offset, &b) in chunk.iter().enumerate() {
             let f = scan_table[b as usize];
             if f & SCAN_FULL != 0 {
                 requires_full_inline = true;
-                has_backtick = f & SCAN_IS_BACKTICK != 0;
+                if f & SCAN_IS_BACKTICK == 0 {
+                    full_only_backticks = false;
+                }
+                if f & SCAN_IS_BACKTICK != 0 && backtick_hint < u8::MAX {
+                    backtick_hint = backtick_hint.saturating_add(1);
+                }
+                rescan_from = i + offset + 1;
                 i = bytes.len(); // signal done
                 break;
             }
@@ -238,7 +202,13 @@ pub(crate) fn parse_inline_pass(
             let f = scan_table[bytes[i] as usize];
             if f & SCAN_FULL != 0 {
                 requires_full_inline = true;
-                has_backtick = f & SCAN_IS_BACKTICK != 0;
+                if f & SCAN_IS_BACKTICK == 0 {
+                    full_only_backticks = false;
+                }
+                if f & SCAN_IS_BACKTICK != 0 && backtick_hint < u8::MAX {
+                    backtick_hint = backtick_hint.saturating_add(1);
+                }
+                rescan_from = i + 1;
                 break;
             }
             if f & SCAN_EMPH != 0 {
@@ -271,16 +241,393 @@ pub(crate) fn parse_inline_pass(
         return;
     }
 
+    if try_emit_common_inline(&mut bufs.scratch, raw, opts) {
+        out.push_str(&bufs.scratch);
+        bufs.scratch.clear();
+        return;
+    }
+
+    if backtick_hint != 0 && backtick_hint < 3 {
+        backtick_hint = count_backtick_hint_from(bytes, rescan_from, backtick_hint);
+    }
+
+    if full_only_backticks && backtick_hint != 0 && !has_matching_backtick_runs(bytes) {
+        if has_breaks {
+            emit_breaks_and_emphasis(out, raw, bytes, opts, &mut bufs.em_delims);
+        } else if has_emphasis {
+            emit_emphasis_only(out, raw, bytes, &mut bufs.em_delims);
+        } else if needs_html_escape || opts.collapse_whitespace {
+            if opts.collapse_whitespace {
+                crate::html::collapse_and_escape_into(out, raw);
+            } else {
+                escape_html_into(out, raw);
+            }
+        } else {
+            out.push_str(raw);
+        }
+        return;
+    }
+
     out.reserve(raw.len());
     if bufs.items.capacity() == 0 {
         bufs.items.reserve(raw.len() / 20 + 4);
     }
-    let mut p = InlineScanner::new_with_bufs(raw, refs, opts, bufs, has_backtick);
+    let mut p = InlineScanner::new_with_bufs(raw, refs, opts, bufs, backtick_hint);
     p.scan_all();
     if !p.delims.is_empty() {
         p.process_emphasis(0);
     }
     p.render_to_html(out, opts);
+}
+
+#[cfg(feature = "html")]
+pub fn benchmark_parse_inline(raw: &str, opts: &ParseOptions) -> String {
+    let mut out = String::with_capacity(raw.len() + 16);
+    let mut bufs = InlineBuffers::new();
+    bufs.prepare(opts);
+    parse_inline_pass(&mut out, raw, &LinkRefMap::default(), opts, &mut bufs);
+    out
+}
+
+#[inline]
+fn count_backtick_hint_from(bytes: &[u8], mut start: usize, mut count: u8) -> u8 {
+    while start < bytes.len() && count < 3 {
+        let Some(off) = memchr::memchr(b'`', &bytes[start..]) else {
+            break;
+        };
+        count += 1;
+        start += off + 1;
+    }
+    count
+}
+
+fn has_matching_backtick_runs(bytes: &[u8]) -> bool {
+    let mut seen_short = [false; 64];
+    let mut seen_long: Option<FxHashMap<u32, ()>> = None;
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        let Some(off) = memchr::memchr(b'`', &bytes[i..]) else {
+            break;
+        };
+        i += off;
+        let run_start = i;
+        i += 1;
+        while i < bytes.len() && bytes[i] == b'`' {
+            i += 1;
+        }
+        let run_len = i - run_start;
+        if run_len < seen_short.len() {
+            let slot = &mut seen_short[run_len];
+            if *slot {
+                return true;
+            }
+            *slot = true;
+        } else {
+            let map = seen_long.get_or_insert_with(FxHashMap::default);
+            let key = run_len as u32;
+            if map.contains_key(&key) {
+                return true;
+            }
+            map.insert(key, ());
+        }
+    }
+
+    false
+}
+
+fn try_emit_common_inline(out: &mut String, raw: &str, opts: &ParseOptions) -> bool {
+    if raw.len() > 256 || raw.is_empty() || opts.collapse_whitespace || raw.contains('\n') {
+        return false;
+    }
+
+    let bytes = raw.as_bytes();
+    let len = bytes.len();
+    let mut text_start = 0usize;
+    let mut i = 0usize;
+
+    out.clear();
+    out.reserve(raw.len() + 16);
+
+    while i < len {
+        match bytes[i] {
+            b'\\' | b'&' | b'<' | b'!' | b'_' => return false,
+            b':' | b'@' if opts.enable_autolink => return false,
+            b'$' if opts.enable_latex_math => return false,
+            b'[' => {
+                let Some(next_i) = emit_simple_link(out, raw, opts, text_start, i) else {
+                    return false;
+                };
+                i = next_i;
+                text_start = i;
+            }
+            b'`' => {
+                let Some(next_i) = emit_simple_code(out, raw, text_start, i) else {
+                    return false;
+                };
+                i = next_i;
+                text_start = i;
+            }
+            b'*' => {
+                let Some(next_i) = emit_simple_delim(
+                    out,
+                    raw,
+                    text_start,
+                    i,
+                    b'*',
+                    "<em>",
+                    "</em>",
+                    "<strong>",
+                    "</strong>",
+                ) else {
+                    return false;
+                };
+                i = next_i;
+                text_start = i;
+            }
+            b'~' if opts.enable_strikethrough => {
+                let Some(next_i) =
+                    emit_simple_double_delim(out, raw, text_start, i, b'~', "<del>", "</del>")
+                else {
+                    return false;
+                };
+                i = next_i;
+                text_start = i;
+            }
+            b'=' if opts.enable_highlight => {
+                let Some(next_i) =
+                    emit_simple_double_delim(out, raw, text_start, i, b'=', "<mark>", "</mark>")
+                else {
+                    return false;
+                };
+                i = next_i;
+                text_start = i;
+            }
+            b'+' if opts.enable_underline => {
+                let Some(next_i) =
+                    emit_simple_double_delim(out, raw, text_start, i, b'+', "<u>", "</u>")
+                else {
+                    return false;
+                };
+                i = next_i;
+                text_start = i;
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+
+    if text_start < len {
+        escape_html_into(out, &raw[text_start..]);
+    }
+    true
+}
+
+fn emit_simple_code(out: &mut String, raw: &str, text_start: usize, at: usize) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    if at + 1 < bytes.len() && bytes[at + 1] == b'`' {
+        return None;
+    }
+    let close_rel = memchr::memchr(b'`', &bytes[at + 1..])?;
+    let close = at + 1 + close_rel;
+    let content = &raw[at + 1..close];
+    if content.is_empty()
+        || content.contains('\n')
+        || content.as_bytes()[0] == b' '
+        || content.as_bytes()[content.len() - 1] == b' '
+    {
+        return None;
+    }
+
+    if text_start < at {
+        escape_html_into(out, &raw[text_start..at]);
+    }
+    out.push_str("<code>");
+    escape_html_into(out, content);
+    out.push_str("</code>");
+    Some(close + 1)
+}
+
+fn emit_simple_link(
+    out: &mut String,
+    raw: &str,
+    opts: &ParseOptions,
+    text_start: usize,
+    at: usize,
+) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    let close_bracket_rel = memchr::memchr(b']', &bytes[at + 1..])?;
+    let close_bracket = at + 1 + close_bracket_rel;
+    if close_bracket + 1 >= bytes.len() || bytes[close_bracket + 1] != b'(' {
+        return None;
+    }
+    let close_paren_rel = memchr::memchr(b')', &bytes[close_bracket + 2..])?;
+    let close_paren = close_bracket + 2 + close_paren_rel;
+    let label = &raw[at + 1..close_bracket];
+    let dest = &raw[close_bracket + 2..close_paren];
+
+    if !is_simple_link_label(label) || !is_simple_link_dest(dest, opts) {
+        return None;
+    }
+
+    if text_start < at {
+        escape_html_into(out, &raw[text_start..at]);
+    }
+    out.push_str("<a href=\"");
+    if !is_dangerous_url(dest) {
+        encode_url_escaped_into(out, dest);
+    }
+    out.push_str("\">");
+    escape_html_into(out, label);
+    out.push_str("</a>");
+    Some(close_paren + 1)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_simple_delim(
+    out: &mut String,
+    raw: &str,
+    text_start: usize,
+    at: usize,
+    marker: u8,
+    single_open: &str,
+    single_close: &str,
+    double_open: &str,
+    double_close: &str,
+) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    let count = if at + 1 < bytes.len() && bytes[at + 1] == marker {
+        2
+    } else {
+        1
+    };
+
+    let before = if at > 0 { char_before(raw, at) } else { ' ' };
+    let after = if at + count < bytes.len() {
+        char_at(raw, at + count)
+    } else {
+        ' '
+    };
+    let (can_open, _) = flanking(marker, before, after);
+    if !can_open {
+        return None;
+    }
+
+    let close = find_simple_delim_close(raw, at + count, marker, count)?;
+    let content = &raw[at + count..close];
+    if !is_simple_delim_content(content) {
+        return None;
+    }
+
+    if text_start < at {
+        escape_html_into(out, &raw[text_start..at]);
+    }
+    let (open, close_tag) = if count == 2 {
+        (double_open, double_close)
+    } else {
+        (single_open, single_close)
+    };
+    out.push_str(open);
+    escape_html_into(out, content);
+    out.push_str(close_tag);
+    Some(close + count)
+}
+
+fn emit_simple_double_delim(
+    out: &mut String,
+    raw: &str,
+    text_start: usize,
+    at: usize,
+    marker: u8,
+    open: &str,
+    close_tag: &str,
+) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    if at + 1 >= bytes.len() || bytes[at + 1] != marker {
+        return None;
+    }
+    let close = find_simple_delim_close(raw, at + 2, marker, 2)?;
+    let content = &raw[at + 2..close];
+    if !is_simple_delim_content(content) {
+        return None;
+    }
+
+    if text_start < at {
+        escape_html_into(out, &raw[text_start..at]);
+    }
+    out.push_str(open);
+    escape_html_into(out, content);
+    out.push_str(close_tag);
+    Some(close + 2)
+}
+
+fn find_simple_delim_close(raw: &str, mut from: usize, marker: u8, count: usize) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    while from < bytes.len() {
+        let rel = memchr::memchr(marker, &bytes[from..])?;
+        let idx = from + rel;
+        if count == 2 && (idx + 1 >= bytes.len() || bytes[idx + 1] != marker) {
+            from = idx + 1;
+            continue;
+        }
+        let before = char_before(raw, idx);
+        let after = if idx + count < bytes.len() {
+            char_at(raw, idx + count)
+        } else {
+            ' '
+        };
+        let (_, can_close) = flanking(marker, before, after);
+        if can_close {
+            return Some(idx);
+        }
+        from = idx + 1;
+    }
+    None
+}
+
+fn is_simple_delim_content(content: &str) -> bool {
+    !content.is_empty()
+        && !content.as_bytes().iter().any(|&b| {
+            matches!(
+                b,
+                b'\\' | b'&' | b'<' | b'!' | b'[' | b']' | b'`' | b'*' | b'_' | b'~' | b'=' | b'+'
+            )
+        })
+}
+
+fn is_simple_link_label(label: &str) -> bool {
+    !label.is_empty()
+        && !label.as_bytes().iter().any(|&b| {
+            matches!(
+                b,
+                b'\\'
+                    | b'&'
+                    | b'<'
+                    | b'!'
+                    | b'['
+                    | b']'
+                    | b'`'
+                    | b'*'
+                    | b'_'
+                    | b'~'
+                    | b'='
+                    | b'+'
+                    | b':'
+                    | b'@'
+                    | b'$'
+            )
+        })
+}
+
+fn is_simple_link_dest(dest: &str, opts: &ParseOptions) -> bool {
+    !dest.is_empty()
+        && !dest.as_bytes().iter().any(|&b| {
+            matches!(
+                b,
+                b' ' | b'\t' | b'\n' | b'<' | b'>' | b'&' | b'\\' | b'(' | b')'
+            ) || (opts.enable_latex_math && b == b'$')
+        })
 }
 
 #[derive(Clone, Copy)]
@@ -301,6 +648,7 @@ struct EmDelim {
 
 #[inline(never)]
 fn process_em_delims(delims: &mut [EmDelim]) {
+    let mut openers_bottom = [0usize; 6];
     let mut closer_idx = 0usize;
     while closer_idx < delims.len() {
         if !delims[closer_idx].active
@@ -312,10 +660,11 @@ fn process_em_delims(delims: &mut [EmDelim]) {
         }
         let cmarker = delims[closer_idx].marker;
         let ccount = (delims[closer_idx].cur_end - delims[closer_idx].cur_start) as u16;
+        let bottom = openers_bottom[em_openers_index(cmarker, ccount)];
 
         let mut found = false;
         let mut oi = closer_idx;
-        while oi > 0 {
+        while oi > bottom {
             oi -= 1;
             if !delims[oi].active || delims[oi].marker != cmarker || !delims[oi].can_open {
                 continue;
@@ -362,8 +711,21 @@ fn process_em_delims(delims: &mut [EmDelim]) {
             break;
         }
         if !found {
+            openers_bottom[em_openers_index(cmarker, ccount)] = closer_idx;
+            if !delims[closer_idx].can_open {
+                delims[closer_idx].active = false;
+            }
             closer_idx += 1;
         }
+    }
+}
+
+#[inline(always)]
+fn em_openers_index(marker: u8, count: u16) -> usize {
+    match marker {
+        b'*' => (count % 3) as usize,
+        b'_' => 3 + (count % 3) as usize,
+        _ => 0,
     }
 }
 
@@ -579,6 +941,9 @@ pub(crate) struct InlineBuffers {
     brackets: Vec<BracketInfo>,
     links: Vec<LinkInfo>,
     em_delims: Vec<EmDelim>,
+    pub(crate) scan_table: [u8; 256],
+    scan_key: u8,
+    pub(crate) scratch: String,
 }
 
 impl InlineBuffers {
@@ -589,8 +954,64 @@ impl InlineBuffers {
             brackets: Vec::with_capacity(8),
             links: Vec::with_capacity(8),
             em_delims: Vec::with_capacity(16),
+            scan_table: build_scan_table(DEFAULT_SCAN_KEY),
+            scan_key: DEFAULT_SCAN_KEY,
+            scratch: String::new(),
         }
     }
+
+    #[inline]
+    pub(crate) fn prepare(&mut self, opts: &ParseOptions) {
+        let key = scan_key(opts);
+        if self.scan_key != key {
+            self.scan_table = build_scan_table(key);
+            self.scan_key = key;
+        }
+    }
+}
+
+#[inline(always)]
+fn scan_key(opts: &ParseOptions) -> u8 {
+    (opts.enable_strikethrough as u8)
+        | ((opts.enable_highlight as u8) << 1)
+        | ((opts.enable_underline as u8) << 2)
+        | ((opts.enable_autolink as u8) << 3)
+        | ((opts.enable_latex_math as u8) << 4)
+}
+
+const DEFAULT_SCAN_KEY: u8 = 0b0_1111;
+
+fn build_scan_table(key: u8) -> [u8; 256] {
+    let mut t = [0u8; 256];
+    t[b'*' as usize] = SCAN_EMPH;
+    t[b'_' as usize] = SCAN_EMPH;
+    t[b'\\' as usize] = SCAN_BREAK;
+    t[b'\n' as usize] = SCAN_BREAK;
+    t[b'>' as usize] = SCAN_ESCAPE;
+    t[b'"' as usize] = SCAN_ESCAPE;
+    t[b'`' as usize] = SCAN_FULL | SCAN_IS_BACKTICK;
+    t[b'!' as usize] = SCAN_FULL;
+    t[b'[' as usize] = SCAN_FULL;
+    t[b']' as usize] = SCAN_FULL;
+    t[b'<' as usize] = SCAN_FULL;
+    t[b'&' as usize] = SCAN_FULL;
+    if key & 1 != 0 {
+        t[b'~' as usize] = SCAN_FULL;
+    }
+    if key & 2 != 0 {
+        t[b'=' as usize] = SCAN_FULL;
+    }
+    if key & 4 != 0 {
+        t[b'+' as usize] = SCAN_FULL;
+    }
+    if key & 8 != 0 {
+        t[b':' as usize] = SCAN_FULL;
+        t[b'@' as usize] = SCAN_FULL;
+    }
+    if key & 16 != 0 {
+        t[b'$' as usize] = SCAN_FULL;
+    }
+    t
 }
 
 #[derive(Clone, Debug)]
@@ -626,10 +1047,18 @@ enum LinkDest {
     Owned(Rc<str>),
 }
 
+/// Link title — either a byte range into the original input (no escapes/entities)
+/// or an owned string (escape/entity processing was needed).
+#[derive(Clone, Debug)]
+enum LinkTitle {
+    Range(u32, u32),
+    Owned(Rc<str>),
+}
+
 #[derive(Clone, Debug)]
 struct LinkInfo {
     dest: LinkDest,
-    title: Option<Rc<str>>,
+    title: Option<LinkTitle>,
     is_image: bool,
 }
 
@@ -692,6 +1121,7 @@ struct InlineScanner<'a> {
     /// `backtick_last[n]` = last byte offset of a run of length `n` (`u32::MAX` = absent).
     /// Covers lengths 1–63; longer runs go into the overflow map (only allocated when needed).
     /// Pre-populated at construction for O(1) bail in `scan_code_span`.
+    has_backtick_index: bool,
     backtick_last: [u32; 64],
     backtick_last_long: Option<rustc_hash::FxHashMap<u32, u32>>,
 }
@@ -702,14 +1132,16 @@ impl<'a> InlineScanner<'a> {
         refs: &'a LinkRefMap,
         opts: &'a ParseOptions,
         bufs: &'a mut InlineBuffers,
-        has_backtick: bool,
+        backtick_hint: u8,
     ) -> Self {
         bufs.items.clear();
         bufs.delims.clear();
         bufs.brackets.clear();
         bufs.links.clear();
-        // Only scan for backtick positions when the pre-scan confirmed at least one backtick.
-        let (backtick_last, backtick_last_long) = if has_backtick {
+        // Only build the backtick index when the pre-scan saw several backticks.
+        // Tiny one-code-span paragraphs are cheaper to handle with local memchr scans.
+        let has_backtick_index = backtick_hint >= 3;
+        let (backtick_last, backtick_last_long) = if has_backtick_index {
             Self::build_backtick_last(input.as_bytes())
         } else {
             ([u32::MAX; 64], None)
@@ -724,6 +1156,7 @@ impl<'a> InlineScanner<'a> {
             delims: &mut bufs.delims,
             brackets: &mut bufs.brackets,
             links: &mut bufs.links,
+            has_backtick_index,
             backtick_last,
             backtick_last_long,
         }

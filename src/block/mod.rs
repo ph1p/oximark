@@ -46,8 +46,13 @@ pub fn parse(markdown: &str, options: &ParseOptions) -> String {
     let mut parser = BlockParser::new(markdown, options);
     let doc = parser.parse();
     let refs = parser.ref_defs;
-    let mut out = String::with_capacity(markdown.len() * 2);
+    let mut out = if markdown.len() <= 256 {
+        String::with_capacity(markdown.len() + 32)
+    } else {
+        String::with_capacity(markdown.len() * 2)
+    };
     let mut bufs = InlineBuffers::new();
+    bufs.prepare(options);
     render_block(&doc, &refs, &mut out, options, &mut bufs);
     out
 }
@@ -82,6 +87,10 @@ pub fn parse_to_ast(markdown: &str, options: &ParseOptions) -> Block {
     };
     let mut parser = BlockParser::new(markdown, options);
     parser.parse()
+}
+
+pub fn benchmark_parse_table_row(line: &str, num_cols: usize) -> Vec<CompactString> {
+    parse_table_row(line, num_cols).into_vec()
 }
 
 #[derive(Clone, Debug)]
@@ -375,6 +384,7 @@ pub(crate) struct BlockParser<'a> {
     enable_task_lists: bool,
     open_blockquotes: usize,
     list_indent_sum: usize,
+    last_list_item_idx: Option<usize>,
     max_nesting_depth: usize,
     enable_indented_code_blocks: bool,
     permissive_atx_headers: bool,
@@ -396,6 +406,7 @@ impl<'a> BlockParser<'a> {
             enable_task_lists: options.enable_task_lists,
             open_blockquotes: 0,
             list_indent_sum: 0,
+            last_list_item_idx: None,
             max_nesting_depth: options.max_nesting_depth,
             enable_indented_code_blocks: options.enable_indented_code_blocks,
             permissive_atx_headers: options.permissive_atx_headers,
@@ -522,6 +533,10 @@ impl<'a> BlockParser<'a> {
             }
             OpenBlockType::ListItem { content_col, .. } => {
                 self.list_indent_sum -= content_col;
+                self.last_list_item_idx = self
+                    .open
+                    .iter()
+                    .rposition(|b| matches!(b.block_type, OpenBlockType::ListItem { .. }));
             }
             _ => {}
         }
