@@ -267,11 +267,7 @@ fn render_one<'a>(
                 render_table_cell(out, cell.as_str(), "th", align, refs, opts, bufs);
             }
             out.push_str("</tr>\n</thead>\n");
-            let num_rows = if num_cols > 0 {
-                td.rows.len() / num_cols
-            } else {
-                0
-            };
+            let num_rows = td.rows.len().checked_div(num_cols).unwrap_or(0);
             if num_rows > 0 {
                 out.push_str("<tbody>\n");
                 if all_none {

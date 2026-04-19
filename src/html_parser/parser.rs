@@ -346,63 +346,45 @@ impl<'a> HtmlParser<'a> {
 
     fn handle_end_tag(&mut self, name: &str) {
         match name {
-            "p" => {
-                if self.is_current("p") {
-                    self.close_paragraph();
-                }
+            "p" if self.is_current("p") => {
+                self.close_paragraph();
             }
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-                if self.is_current(name) {
-                    self.close_heading();
-                }
+            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" if self.is_current(name) => {
+                self.close_heading();
             }
-            "pre" => {
-                if self.is_current("pre") {
-                    self.close_code_block();
-                }
+            "pre" if self.is_current("pre") => {
+                self.close_code_block();
             }
-            "blockquote" => {
-                if self.is_current("blockquote") {
-                    self.close_blockquote();
-                }
+            "blockquote" if self.is_current("blockquote") => {
+                self.close_blockquote();
             }
-            "ul" | "ol" => {
-                if self.is_current(name) {
-                    self.close_list();
-                }
+            "ul" | "ol" if self.is_current(name) => {
+                self.close_list();
             }
-            "li" => {
-                if self.is_current("li") {
-                    self.close_list_item();
-                }
+            "li" if self.is_current("li") => {
+                self.close_list_item();
             }
-            "table" => {
-                if self.is_current("table") {
-                    self.close_table();
-                }
+            "table" if self.is_current("table") => {
+                self.close_table();
             }
             "tr" => {
                 self.close_table_row();
             }
-            "th" | "td" => {
-                if self.is_current(name) {
-                    self.close_table_cell();
-                }
+            "th" | "td" if self.is_current(name) => {
+                self.close_table_cell();
             }
             "thead" | "tbody" => {
                 // Just a marker, no action needed
             }
-            "div" | "section" | "article" | "main" | "header" | "footer" | "nav" | "aside" => {
-                if self.is_current(name) {
-                    self.close_generic_block();
-                }
+            "div" | "section" | "article" | "main" | "header" | "footer" | "nav" | "aside"
+                if self.is_current(name) =>
+            {
+                self.close_generic_block();
             }
-            "code" => {
-                if !self.is_inside("pre") {
-                    // Inline code end
-                    let current = self.stack.last_mut().unwrap();
-                    current.text_content.push_str("</code>");
-                }
+            "code" if !self.is_inside("pre") => {
+                // Inline code end
+                let current = self.stack.last_mut().unwrap();
+                current.text_content.push_str("</code>");
             }
             // Inline elements
             "strong" | "b" | "em" | "i" | "del" | "s" | "strike" | "mark" | "u" | "ins" | "a"
@@ -451,17 +433,15 @@ impl<'a> HtmlParser<'a> {
         // Auto-close certain tags when a new block starts
         match tag {
             "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "ul" | "ol" | "blockquote" | "pre"
-            | "table" | "hr" | "div" | "section" | "article" => {
+            | "table" | "hr" | "div" | "section" | "article"
+                if self.is_current("p") =>
+            {
                 // Close any open paragraph
-                if self.is_current("p") {
-                    self.close_paragraph();
-                }
+                self.close_paragraph();
             }
-            "li" => {
+            "li" if self.is_current("li") => {
                 // Close previous li if any
-                if self.is_current("li") {
-                    self.close_list_item();
-                }
+                self.close_list_item();
             }
             "tr" => {
                 // Close previous tr if any

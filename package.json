@@ -75,8 +75,8 @@
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "markdown-wasm": "^1.2.0",
     "md4w": "^0.2.7",
-    "oxfmt": "^0.43.0",
-    "oxlint": "^1.58.0",
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
     "semantic-release": "^25.0.3"
   },
   "engines": {
