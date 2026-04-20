@@ -1,22 +1,24 @@
-//! `ironmark` CLI — render Markdown files as coloured terminal output.
+//! `ironmark` CLI — render Markdown in various formats.
 //!
 //! # Usage
 //!
 //! ```text
-//! ironmark --ansi [OPTIONS] [FILE...]
+//! ironmark [--format <html|ansi|ast>] [OPTIONS] [FILE...]
 //! ```
 //!
 //! When no `FILE` arguments are given, input is read from stdin.
 //! Use `-` as a file path to explicitly read from stdin.
+//! Default format is `html`.
 //!
 //! # Options
 //!
 //! | Flag | Description |
 //! |---|---|
-//! | `--ansi` | Render as ANSI-coloured terminal output (required) |
-//! | `--width N` | Terminal column width for word-wrap and heading underlines (default: auto-detect via `$COLUMNS` / `tput cols`, fallback 80) |
-//! | `--no-color` / `--no-colour` | Disable ANSI escape codes (plain text output) |
-//! | `-n`, `--line-numbers` | Show line numbers in fenced code blocks |
+//! | `--format <html\|ansi\|ast>` | Output format: html (default), ansi, ast (alias: json) |
+//! | `--width N` | Terminal column width for word-wrap (ansi only; default: auto-detect) |
+//! | `--no-color` / `--no-colour` | Disable ANSI escape codes (ansi only) |
+//! | `-n`, `--line-numbers` | Show line numbers in fenced code blocks (ansi only) |
+//! | `--padding N` | Horizontal padding (ansi only) |
 //! | `--no-hard-breaks` | Don't convert newlines inside paragraphs to `<br>` |
 //! | `--no-tables` | Disable pipe table syntax |
 //! | `--no-highlight` | Disable `==highlight==` syntax |
@@ -33,50 +35,55 @@
 //! # Examples
 //!
 //! ```text
-//! ironmark --ansi README.md
-//! ironmark --ansi --no-color README.md | less
-//! ironmark --ansi --width 80 README.md
-//! echo "# Hello **world**" | ironmark --ansi
+//! echo '# Hello' | ironmark
+//! ironmark --format ansi README.md
+//! ironmark --format ast README.md
+//! ironmark --format ansi --width 80 README.md
+//! cat doc.md | ironmark --format ansi --math --wiki-links
 //! ```
 
-use std::io::{self, Read};
+use std::io::{self, IsTerminal, Read};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const HELP: &str = "\
-ironmark — render Markdown as coloured terminal output
+ironmark — render Markdown in various output formats
 
 USAGE:
-    ironmark --ansi [OPTIONS] [FILE...]
+    ironmark [--format <html|ansi|ast>] [OPTIONS] [FILE...]
 
     When no FILE is given, reads from stdin. Use '-' for stdin explicitly.
+    Default format is html.
 
-OPTIONS:
-    --ansi               Render as ANSI-coloured terminal output (required)
+OPTIONS (all formats):
+    --format <html|ansi|ast>  Output format; ast also accepts 'json' (default: html)
+    --no-hard-breaks          Don't turn soft newlines into hard line breaks
+    --no-tables               Disable pipe table syntax
+    --no-highlight            Disable ==highlight== syntax
+    --no-strikethrough        Disable ~~strikethrough~~ syntax
+    --no-underline            Disable ++underline++ syntax
+    --no-autolink             Disable bare URL auto-linking
+    --no-task-lists           Disable - [x] task list syntax
+    --math                    Enable $inline$ and $$display$$ math
+    --wiki-links              Enable [[wiki link]] syntax
+    --max-size N              Truncate input to N bytes (0 = unlimited)
+    -h, --help                Print this help and exit
+    -V, --version             Print version and exit
+
+OPTIONS (ansi format only):
     --width N            Terminal column width for word-wrap and heading underlines
                          (default: auto-detect via $COLUMNS / tput cols, fallback 80)
     --no-color           Disable ANSI escape codes (plain text)
     -n, --line-numbers   Show line numbers in fenced code blocks
-    --no-hard-breaks     Don't turn soft newlines into hard line breaks
-    --no-tables          Disable pipe table syntax
-    --no-highlight       Disable ==highlight== syntax
-    --no-strikethrough   Disable ~~strikethrough~~ syntax
-    --no-underline       Disable ++underline++ syntax
-    --no-autolink        Disable bare URL auto-linking
-    --no-task-lists      Disable - [x] task list syntax
-    --math               Enable $inline$ and $$display$$ math
-    --wiki-links         Enable [[wiki link]] syntax
-    --padding N          Add horizontal padding to ANSI output
-    --max-size N         Truncate input to N bytes (0 = unlimited)
-    -h, --help           Print this help and exit
-    -V, --version        Print version and exit
+    --padding N          Add horizontal padding to output
 
 EXAMPLES:
-    ironmark --ansi README.md
-    ironmark --ansi --width 120 README.md
-    ironmark --ansi --no-color README.md | less
-    echo '# Hello' | ironmark --ansi
-    cat doc.md | ironmark --ansi --math --wiki-links
+    echo '# Hello' | ironmark
+    echo '# Hello' | ironmark --format html
+    ironmark --format ansi README.md
+    ironmark --format ast README.md
+    ironmark --format ansi --width 120 --no-color README.md | less
+    cat doc.md | ironmark --format ansi --math --wiki-links
 ";
 
 fn parse_usize_arg(flag: &str, value: &str) -> usize {
@@ -89,7 +96,7 @@ fn parse_usize_arg(flag: &str, value: &str) -> usize {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut files: Vec<String> = Vec::new();
-    let mut ansi_mode = false;
+    let mut format: Option<String> = None;
     let mut color = true;
     let mut line_numbers = false;
     let mut width: Option<usize> = None;
@@ -107,7 +114,14 @@ fn main() {
                 println!("ironmark {VERSION}");
                 return;
             }
-            "--ansi" => ansi_mode = true,
+            "--format" => {
+                i += 1;
+                if i >= args.len() {
+                    eprintln!("error: --format requires a value");
+                    std::process::exit(2);
+                }
+                format = Some(args[i].clone());
+            }
             "--no-color" | "--no-colour" => color = false,
             "--line-numbers" | "-n" => line_numbers = true,
             "--no-hard-breaks" => parse_opts.hard_breaks = false,
@@ -143,6 +157,9 @@ fn main() {
                 }
                 parse_opts.max_input_size = parse_usize_arg("--max-size", &args[i]);
             }
+            arg if arg.starts_with("--format=") => {
+                format = Some(arg["--format=".len()..].to_string());
+            }
             arg if arg.starts_with("--width=") => {
                 width = Some(parse_usize_arg("--width", &arg["--width=".len()..]));
             }
@@ -163,22 +180,22 @@ fn main() {
         i += 1;
     }
 
-    if !ansi_mode {
-        eprintln!("error: --ansi flag is required");
+    let fmt = format.as_deref().unwrap_or("html");
+
+    if files.is_empty() && io::stdin().is_terminal() {
+        eprintln!("error: no input provided");
         eprintln!("Run 'ironmark --help' for usage.");
         std::process::exit(2);
     }
 
     // Resolve terminal width: explicit --width → $COLUMNS env var → tput cols → fallback 80
     let resolved_width = width.unwrap_or_else(|| {
-        // $COLUMNS is set by most shells when running interactively
         if let Some(w) = std::env::var("COLUMNS")
             .ok()
             .and_then(|v| v.trim().parse().ok())
         {
             return w;
         }
-        // Last resort: ask tput (only works when a TTY is attached)
         if let Ok(out) = std::process::Command::new("tput").arg("cols").output()
             && out.status.success()
             && let Ok(s) = std::str::from_utf8(&out.stdout)
@@ -223,8 +240,19 @@ fn main() {
         }
     }
 
-    print!(
-        "{}",
-        ironmark::render_ansi(&input, &parse_opts, Some(&aopts))
-    );
+    match fmt {
+        "html" => print!("{}", ironmark::parse(&input, &parse_opts)),
+        "ansi" => print!(
+            "{}",
+            ironmark::render_ansi(&input, &parse_opts, Some(&aopts))
+        ),
+        "ast" | "json" => {
+            let ast = ironmark::parse_to_ast(&input, &parse_opts);
+            println!("{ast:#?}");
+        }
+        _ => {
+            eprintln!("error: unknown format '{fmt}' — use html, ansi, or ast");
+            std::process::exit(2);
+        }
+    }
 }

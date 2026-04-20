@@ -6,6 +6,10 @@ use ironmark::{
 };
 use wasm_bindgen::prelude::*;
 
+#[global_allocator]
+static ALLOC: lol_alloc::AssumeSingleThreaded<lol_alloc::FreeListAllocator> =
+    unsafe { lol_alloc::AssumeSingleThreaded::new(lol_alloc::FreeListAllocator::new()) };
+
 /// Maximum input size for WASM: 10 MB
 const WASM_MAX_INPUT_SIZE: usize = 10 * 1024 * 1024;
 

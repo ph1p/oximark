@@ -195,19 +195,19 @@ const html = parse("# Hello\n\nThis is **fast**.");
 
 ## CLI
 
-Render Markdown as coloured terminal output. Two ways to install:
+Render Markdown as HTML, ANSI terminal output, or an AST. Default format is `html`.
 
 ### npm
 
 ```bash
-npx ironmark --ansi README.md
+npx ironmark README.md
 ```
 
 Or install globally:
 
 ```bash
 npm install -g ironmark
-ironmark --ansi README.md
+ironmark README.md
 ```
 
 ### Rust
@@ -216,47 +216,56 @@ Native binary — faster startup, auto-detects terminal width via `$COLUMNS` / `
 
 ```bash
 cargo install ironmark --features cli
-ironmark --ansi README.md
+ironmark README.md
 ```
 
 ### Options
 
-Both CLIs support the same flags (the npm CLI requires `--ansi` as the first flag):
+Both CLIs support the same flags:
 
 ```text
-OPTIONS:
+OPTIONS (all formats):
+    --format <html|ansi|ast>  Output format; ast also accepts 'json' (default: html)
+    --no-hard-breaks          Don't turn soft newlines into hard line breaks
+    --no-tables               Disable pipe table syntax
+    --no-highlight            Disable ==highlight== syntax
+    --no-strikethrough        Disable ~~strikethrough~~ syntax
+    --no-underline            Disable ++underline++ syntax
+    --no-autolink             Disable bare URL auto-linking
+    --no-task-lists           Disable - [x] task list syntax
+    --math                    Enable $inline$ and $$display$$ math
+    --wiki-links              Enable [[wiki link]] syntax
+    --max-size N              Truncate input to N bytes (Rust only)
+    -h, --help                Print this help and exit
+    -V, --version             Print version and exit
+
+OPTIONS (ansi format only):
     --width N            Terminal column width (default: auto-detect, fallback 80)
-    --padding N          Horizontal padding added to both sides of each line, plus ceil(padding/2) blank lines at the top (default: 0)
+    --padding N          Horizontal padding added to both sides of each line (default: 0)
     --no-color           Disable ANSI escape codes (plain text)
     -n, --line-numbers   Show line numbers in fenced code blocks
-    --no-hard-breaks     Don't turn soft newlines into hard line breaks
-    --no-tables          Disable pipe table syntax
-    --no-highlight       Disable ==highlight== syntax
-    --no-strikethrough   Disable ~~strikethrough~~ syntax
-    --no-underline       Disable ++underline++ syntax
-    --no-autolink        Disable bare URL auto-linking
-    --no-task-lists      Disable - [x] task list syntax
-    --math               Enable $inline$ and $$display$$ math
-    --wiki-links         Enable [[wiki link]] syntax
-    --max-size N         Truncate input to N bytes (Rust only)
-    -h, --help           Print this help and exit
-    -V, --version        Print version and exit
 ```
 
 ### Examples
 
 ```bash
-# npm
-npx ironmark --ansi README.md
-npx ironmark --ansi --width 120 README.md
-echo '# Hello' | npx ironmark --ansi
-npx ironmark --ansi --no-color README.md | less
+# Render as HTML (default)
+echo '# Hello' | npx ironmark
+npx ironmark README.md
+
+# Render as ANSI terminal output
+npx ironmark --format ansi README.md
+npx ironmark --format ansi --width 120 README.md
+npx ironmark --format ansi --no-color README.md | less
+
+# Render as AST (JSON)
+npx ironmark --format ast README.md
 
 # Rust (after cargo install ironmark --features cli)
-ironmark --ansi README.md
-ironmark --ansi --width 120 README.md
-echo '# Hello' | ironmark --ansi
-cat doc.md | ironmark --ansi --math --wiki-links
+echo '# Hello' | ironmark
+ironmark --format ansi README.md
+ironmark --format ansi --width 120 README.md
+cat doc.md | ironmark --format ansi --math --wiki-links
 ```
 
 ## Rust

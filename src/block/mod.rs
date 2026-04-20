@@ -509,18 +509,21 @@ impl<'a> BlockParser<'a> {
     }
 
     fn mark_blank_on_list_items(&mut self) {
-        let len = self.open.len();
-        for i in (1..len).rev() {
-            match &self.open[i].block_type {
-                OpenBlockType::ListItem { .. } => {
-                    self.open[i].had_blank_in_item = true;
-                    break;
-                }
-                OpenBlockType::BlockQuote => {
-                    break;
-                }
-                _ => {}
+        if let Some(idx) = self.last_list_item_idx {
+            if self.open_blockquotes == 0 {
+                self.open[idx].had_blank_in_item = true;
+                return;
             }
+            // A blockquote exists somewhere; check if one sits between the list
+            // item and the tip (if so, the blank belongs to the blockquote, not
+            // the list item).
+            let len = self.open.len();
+            for i in (idx + 1)..len {
+                if matches!(self.open[i].block_type, OpenBlockType::BlockQuote) {
+                    return;
+                }
+            }
+            self.open[idx].had_blank_in_item = true;
         }
     }
 
@@ -533,10 +536,14 @@ impl<'a> BlockParser<'a> {
             }
             OpenBlockType::ListItem { content_col, .. } => {
                 self.list_indent_sum -= content_col;
-                self.last_list_item_idx = self
-                    .open
-                    .iter()
-                    .rposition(|b| matches!(b.block_type, OpenBlockType::ListItem { .. }));
+                // The item we just popped was last_list_item_idx; the next one
+                // must be strictly below that index, so search only that prefix.
+                self.last_list_item_idx = match self.last_list_item_idx {
+                    Some(idx) if idx > 0 => self.open[..idx]
+                        .iter()
+                        .rposition(|b| matches!(b.block_type, OpenBlockType::ListItem { .. })),
+                    _ => None,
+                };
             }
             _ => {}
         }

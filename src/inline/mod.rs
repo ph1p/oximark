@@ -344,35 +344,65 @@ fn try_emit_common_inline(out: &mut String, raw: &str, opts: &ParseOptions) -> b
     let bytes = raw.as_bytes();
     let len = bytes.len();
     let mut text_start = 0usize;
+    // Track whether current plain-text segment needs HTML escaping.
+    // We set this on '>' since '<', '&', '"' are already bailout chars above.
+    let mut seg_needs_escape = false;
     let mut i = 0usize;
 
     out.clear();
     out.reserve(raw.len() + 16);
 
+    // Flush text_start..at to `out`, using push_str when no escaping needed.
+    macro_rules! flush_text {
+        ($at:expr) => {
+            if text_start < $at {
+                if seg_needs_escape {
+                    escape_html_into(out, &raw[text_start..$at]);
+                } else {
+                    // SAFETY: text_start and $at are byte positions within `raw`
+                    // advanced only at ASCII boundaries in this function.
+                    out.push_str(unsafe { raw.get_unchecked(text_start..$at) });
+                }
+            }
+        };
+    }
+
     while i < len {
         match bytes[i] {
+            // HTML special: '&', '<', '"' force a full escape pass (rare in prose).
+            // '!' and '_' are CommonMark specials we can't fast-path.
             b'\\' | b'&' | b'<' | b'!' | b'_' => return false,
+            b'>' => {
+                // '>' needs HTML escaping but is otherwise harmless for inline structure.
+                seg_needs_escape = true;
+                i += 1;
+            }
             b':' | b'@' if opts.enable_autolink => return false,
             b'$' if opts.enable_latex_math => return false,
             b'[' => {
-                let Some(next_i) = emit_simple_link(out, raw, opts, text_start, i) else {
+                flush_text!(i);
+                let Some(next_i) = emit_simple_link(out, raw, opts, i, i) else {
                     return false;
                 };
                 i = next_i;
                 text_start = i;
+                seg_needs_escape = false;
             }
             b'`' => {
-                let Some(next_i) = emit_simple_code(out, raw, text_start, i) else {
+                flush_text!(i);
+                let Some(next_i) = emit_simple_code(out, raw, i, i) else {
                     return false;
                 };
                 i = next_i;
                 text_start = i;
+                seg_needs_escape = false;
             }
             b'*' => {
+                flush_text!(i);
                 let Some(next_i) = emit_simple_delim(
                     out,
                     raw,
-                    text_start,
+                    i,
                     i,
                     b'*',
                     "<em>",
@@ -384,33 +414,39 @@ fn try_emit_common_inline(out: &mut String, raw: &str, opts: &ParseOptions) -> b
                 };
                 i = next_i;
                 text_start = i;
+                seg_needs_escape = false;
             }
             b'~' if opts.enable_strikethrough => {
+                flush_text!(i);
                 let Some(next_i) =
-                    emit_simple_double_delim(out, raw, text_start, i, b'~', "<del>", "</del>")
+                    emit_simple_double_delim(out, raw, i, i, b'~', "<del>", "</del>")
                 else {
                     return false;
                 };
                 i = next_i;
                 text_start = i;
+                seg_needs_escape = false;
             }
             b'=' if opts.enable_highlight => {
+                flush_text!(i);
                 let Some(next_i) =
-                    emit_simple_double_delim(out, raw, text_start, i, b'=', "<mark>", "</mark>")
+                    emit_simple_double_delim(out, raw, i, i, b'=', "<mark>", "</mark>")
                 else {
                     return false;
                 };
                 i = next_i;
                 text_start = i;
+                seg_needs_escape = false;
             }
             b'+' if opts.enable_underline => {
-                let Some(next_i) =
-                    emit_simple_double_delim(out, raw, text_start, i, b'+', "<u>", "</u>")
+                flush_text!(i);
+                let Some(next_i) = emit_simple_double_delim(out, raw, i, i, b'+', "<u>", "</u>")
                 else {
                     return false;
                 };
                 i = next_i;
                 text_start = i;
+                seg_needs_escape = false;
             }
             _ => {
                 i += 1;
@@ -419,7 +455,12 @@ fn try_emit_common_inline(out: &mut String, raw: &str, opts: &ParseOptions) -> b
     }
 
     if text_start < len {
-        escape_html_into(out, &raw[text_start..]);
+        if seg_needs_escape {
+            escape_html_into(out, &raw[text_start..]);
+        } else {
+            // SAFETY: text_start is at an ASCII boundary within `raw`.
+            out.push_str(unsafe { raw.get_unchecked(text_start..) });
+        }
     }
     true
 }

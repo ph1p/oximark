@@ -452,16 +452,9 @@ impl<'a> BlockParser<'a> {
             let indent = ns_col - line.col_offset;
 
             if first_byte == 0 && ns_off >= line.raw.len() {
-                let len = self.open.len();
-                let mut found_list_item = false;
-                for i in (1..len).rev() {
-                    if matches!(self.open[i].block_type, OpenBlockType::ListItem { .. }) {
-                        self.open[i].had_blank_in_item = true;
-                        found_list_item = true;
-                        break;
-                    }
-                }
-                if !found_list_item {
+                if let Some(idx) = self.last_list_item_idx {
+                    self.open[idx].had_blank_in_item = true;
+                } else {
                     let parent = self.open.last_mut().unwrap();
                     if parent
                         .children
