@@ -34,6 +34,7 @@
 mod constants;
 mod inline;
 mod renderer;
+mod table;
 mod wrap;
 
 use crate::ParseOptions;
