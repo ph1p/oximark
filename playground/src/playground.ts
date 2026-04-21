@@ -1,4 +1,4 @@
-import { init, parse, parseToAst } from "ironmark";
+import { init, renderHtml, parseMarkdown as ironmarkParseMarkdown } from "ironmark";
 import wasmUrl from "ironmark/ironmark.wasm?url";
 import type { EditorView } from "@codemirror/view";
 import { cmThemeExtension, subscribeThemeChange } from "./editor/theme";
@@ -179,7 +179,7 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       enableWikiLinks: o.enable_wiki_links,
       enableLatexMath: o.enable_latex_math,
     };
-    const html = parse(md, opts);
+    const html = renderHtml(md, opts);
     args.onStatusChange(`${(performance.now() - t0).toFixed(2)}ms`);
 
     args.preview.innerHTML = html;
@@ -199,7 +199,8 @@ export async function initPlayground(args: InitPlaygroundArgs): Promise<Playgrou
       htmlState.dirty = true;
     }
 
-    const astJson = parseToAst(md, opts);
+    const ast = ironmarkParseMarkdown(md, opts);
+    const astJson = JSON.stringify(ast);
     htmlState.lastAst = astJson;
 
     cancelAnimationFrame(astUpdateRaf);

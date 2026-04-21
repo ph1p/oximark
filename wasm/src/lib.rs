@@ -1,8 +1,6 @@
 use ironmark::{
-    AnsiOptions, Block, HtmlParseOptions, ParseOptions, UnknownInlineHandling,
-    html_to_markdown as ironmark_html_to_markdown, parse as ironmark_parse,
-    parse_html_to_ast as ironmark_parse_html_to_ast, parse_to_ast as ironmark_parse_to_ast,
-    render_ansi as ironmark_render_ansi, render_markdown as ironmark_render_markdown,
+    AnsiOptions, Block, HtmlParseOptions, ParseOptions, UnknownInlineHandling, parse_markdown,
+    render_ansi_terminal, render_html,
 };
 use wasm_bindgen::prelude::*;
 
@@ -79,7 +77,7 @@ pub fn parse(
     enable_wiki_links: Option<bool>,
     enable_latex_math: Option<bool>,
 ) -> String {
-    ironmark_parse(
+    render_html(
         markdown,
         &build_options(
             hard_breaks,
@@ -106,7 +104,7 @@ pub fn parse(
 
 #[wasm_bindgen(js_name = "parseDefault")]
 pub fn parse_default(markdown: &str) -> String {
-    ironmark_parse(markdown, &ParseOptions::default())
+    render_html(markdown, &ParseOptions::default())
 }
 
 #[wasm_bindgen(js_name = "parseToAst")]
@@ -131,7 +129,7 @@ pub fn parse_to_ast(
     enable_wiki_links: Option<bool>,
     enable_latex_math: Option<bool>,
 ) -> Result<String, JsValue> {
-    let ast = ironmark_parse_to_ast(
+    let ast = parse_markdown(
         markdown,
         &build_options(
             hard_breaks,
@@ -224,7 +222,7 @@ pub fn render_ansi(
         line_numbers: line_numbers.unwrap_or(false),
         padding: padding as usize,
     };
-    ironmark_render_ansi(markdown, &parse_opts, Some(&ansi_opts))
+    render_ansi_terminal(markdown, &parse_opts, Some(&ansi_opts))
 }
 
 fn build_html_parse_options(preserve_unknown_as_html: Option<bool>) -> HtmlParseOptions {
@@ -253,7 +251,8 @@ pub fn parse_html_to_ast(
     html: &str,
     preserve_unknown_as_html: Option<bool>,
 ) -> Result<String, JsValue> {
-    let ast = ironmark_parse_html_to_ast(html, &build_html_parse_options(preserve_unknown_as_html));
+    let ast =
+        ironmark::parse_html_to_ast(html, &build_html_parse_options(preserve_unknown_as_html));
     serde_json::to_string(&ast)
         .map_err(|err| JsValue::from_str(&format!("AST serialization failed: {err}")))
 }
@@ -268,7 +267,7 @@ pub fn parse_html_to_ast(
 /// @returns Markdown string.
 #[wasm_bindgen(js_name = "htmlToMarkdown")]
 pub fn html_to_markdown(html: &str, preserve_unknown_as_html: Option<bool>) -> String {
-    ironmark_html_to_markdown(html, &build_html_parse_options(preserve_unknown_as_html))
+    ironmark::html_to_markdown(html, &build_html_parse_options(preserve_unknown_as_html))
 }
 
 /// Render an AST (as JSON) to Markdown.
@@ -281,5 +280,5 @@ pub fn html_to_markdown(html: &str, preserve_unknown_as_html: Option<bool>) -> S
 pub fn render_markdown(ast_json: &str) -> Result<String, JsValue> {
     let ast: Block = serde_json::from_str(ast_json)
         .map_err(|err| JsValue::from_str(&format!("Invalid AST JSON: {err}")))?;
-    Ok(ironmark_render_markdown(&ast))
+    Ok(ironmark::render_markdown(&ast))
 }

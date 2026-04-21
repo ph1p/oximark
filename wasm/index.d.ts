@@ -1,6 +1,48 @@
+// ─── Input types ─────────────────────────────────────────────────────────────
+
 export type MarkdownInput = string | Uint8Array | ArrayBuffer | ArrayBufferView;
 
+// ─── Preset names ─────────────────────────────────────────────────────────────
+
+/**
+ * Named option presets for common use cases.
+ *
+ * - `"default"` — Default ironmark behavior; all extensions enabled.
+ * - `"safe"` — Disables raw HTML and enables the GFM tag filter. Use for untrusted input.
+ * - `"strict"` — CommonMark-only; disables extensions and restricts permissive behaviors.
+ * - `"llm"` — Deterministic, structure-first output optimized for AI pipelines and agents.
+ *   Disables autolink, wiki links, math, hard breaks, and raw HTML; enables heading IDs
+ *   and whitespace normalization.
+ */
+export type PresetName = "default" | "safe" | "strict" | "llm";
+
+// ─── Parse options ────────────────────────────────────────────────────────────
+
 export interface ParseOptions {
+  /**
+   * Apply a named preset before applying any explicit options.
+   * Explicit options always override the preset.
+   */
+  preset?: PresetName;
+
+  /**
+   * Enable safe rendering. Equivalent to `{ disableRawHtml: true, tagFilter: true }`.
+   * Explicit `disableRawHtml` / `tagFilter` values override this.
+   */
+  safe?: boolean;
+
+  /**
+   * When true, output is normalized for deterministic comparison:
+   * whitespace is collapsed and output is stable across runs.
+   */
+  deterministic?: boolean;
+
+  /**
+   * Reserved for future use. When true, the AST will include source position
+   * metadata. Has no effect in the current version.
+   */
+  stableAst?: boolean;
+
   /** When true, every newline in a paragraph becomes a hard line break (`<br />`). Default: true. */
   hardBreaks?: boolean;
   /** Enable ==highlight== syntax for `<mark>`. Default: true. */
@@ -39,37 +81,13 @@ export interface ParseOptions {
   enableLatexMath?: boolean;
 }
 
-/**
- * Initialize the WASM module.
- *
- * - **Node.js**: This is a no-op — WASM is embedded and loaded synchronously at import time.
- * - **Browser/Bundler**: Must be called (and awaited) before using `parse()`.
- *   Optionally pass a URL or `WebAssembly.Module` to override the default WASM location.
- *   Calling `init()` multiple times is safe (subsequent calls are no-ops).
- */
-export declare function init(input?: string | URL | WebAssembly.Module): Promise<void>;
+// ─── Render-specific option aliases ──────────────────────────────────────────
 
-/**
- * Parse Markdown to HTML.
- *
- * @param markdown - Markdown source (string or binary).
- * @param options - Optional parsing options.
- * @returns HTML string.
- */
-export declare function parse(markdown: MarkdownInput, options?: ParseOptions): string;
+/** Options for `renderHtml()`. Same as `ParseOptions`. */
+export type RenderHtmlOptions = ParseOptions;
 
-/**
- * Parse Markdown and return the block-level AST as a JSON string.
- *
- * @param markdown - Markdown source (string or binary).
- * @param options - Optional parsing options.
- * @returns JSON string representing the AST.
- */
-export declare function parseToAst(markdown: MarkdownInput, options?: ParseOptions): string;
+// ─── ANSI options ─────────────────────────────────────────────────────────────
 
-/**
- * Options for the ANSI terminal renderer.
- */
 export interface AnsiOptions {
   /**
    * Terminal column width for word-wrap, heading underlines, and thematic breaks.
@@ -88,40 +106,13 @@ export interface AnsiOptions {
   lineNumbers?: boolean;
   /**
    * Horizontal padding to add on both sides of every output line.
-   * The output width remains `width`; padding reduces the available text area.
    * Also adds `ceil(padding / 2)` blank lines at the top. Default: `0`.
    */
   padding?: number;
 }
 
-/**
- * Render Markdown as ANSI-coloured terminal output.
- *
- * Produces a string containing ANSI 256-colour escape codes suitable for
- * display in a terminal emulator. Headings, code blocks, inline code,
- * blockquotes, tables, and inline formatting are all styled distinctly.
- *
- * @param markdown - Markdown source (string or binary).
- * @param options - Optional parse options (same flags as `parse()`).
- * @param ansiOptions - Optional ANSI rendering options (width, color, lineNumbers).
- * @returns String with ANSI escape codes (or plain text when `color: false`).
- *
- * @example
- * ```ts
- * import { renderAnsi } from "ironmark";
- * const out = renderAnsi("# Hello\n\n**bold** and `code`");
- * process.stdout.write(out);
- * ```
- */
-export declare function renderAnsi(
-  markdown: MarkdownInput,
-  options?: ParseOptions,
-  ansiOptions?: AnsiOptions,
-): string;
+// ─── HTML parse options ───────────────────────────────────────────────────────
 
-/**
- * Options for HTML-to-Markdown parsing.
- */
 export interface HtmlParseOptions {
   /**
    * If true, unknown HTML tags (like `<sup>`, `<sub>`, `<abbr>`) are preserved
@@ -131,56 +122,251 @@ export interface HtmlParseOptions {
   preserveUnknownAsHtml?: boolean;
 }
 
+// ─── AST node types ───────────────────────────────────────────────────────────
+
 /**
- * Parse an HTML string and return the AST as a JSON string.
+ * A single AST node. The `t` field is the type discriminant.
+ * Child nodes are in `c`; leaf text content is in `text`.
+ */
+export interface AstNode {
+  t: string;
+  c?: AstNode[];
+  text?: string;
+  [key: string]: unknown;
+}
+
+/** Parsed AST: an array of top-level block nodes returned by `parseMarkdown()`. */
+export type MarkdownAst = AstNode[];
+
+// ─── Introspection return types ───────────────────────────────────────────────
+
+export interface Capabilities {
+  astSchemaVersion: string;
+  formats: string[];
+  presets: PresetName[];
+  extensions: string[];
+  security: string[];
+}
+
+export interface HeadingInfo {
+  level: number;
+  text: string;
+  id: string;
+}
+
+export interface AstSummary {
+  blockCount: number;
+  nodeCounts: Record<string, number>;
+}
+
+// ─── Initialization ───────────────────────────────────────────────────────────
+
+/**
+ * Initialize the WASM module.
  *
- * This converts HTML back into the same AST structure used by the Markdown parser,
- * enabling HTML-to-Markdown conversion.
- *
- * @param html - HTML source string.
- * @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML.
- * @returns JSON string representing the AST.
+ * - **Node.js**: no-op — WASM is embedded and loaded synchronously at import time.
+ * - **Browser/Bundler**: must be awaited before calling any other function.
+ *   Accepts a URL or `WebAssembly.Module` to override the default WASM location.
+ *   Safe to call multiple times.
  *
  * @example
  * ```ts
- * import { parseHtmlToAst } from "ironmark";
- * const ast = parseHtmlToAst("<h1>Hello</h1><p>World</p>");
- * console.log(JSON.parse(ast));
+ * import { init, renderHtml } from "ironmark";
+ * await init();
+ * const html = renderHtml("# Hello");
  * ```
  */
-export declare function parseHtmlToAst(html: string, preserveUnknownAsHtml?: boolean): string;
+export declare function init(input?: string | URL | WebAssembly.Module): Promise<void>;
+
+// ─── Core API ─────────────────────────────────────────────────────────────────
+
+/**
+ * Parse Markdown and return the structured AST as a JavaScript object.
+ *
+ * The recommended entry point for AI pipelines, agents, and any workflow
+ * that needs to inspect or transform document structure.
+ *
+ * @param input - Markdown source.
+ * @param options - Optional parse options or preset.
+ * @returns Parsed AST — a JavaScript array, no `JSON.parse()` needed.
+ *
+ * @example
+ * ```ts
+ * import { parseMarkdown } from "ironmark";
+ *
+ * const ast = parseMarkdown("# Hello\n\n**World**");
+ * ```
+ *
+ * @example With a preset
+ * ```ts
+ * const ast = parseMarkdown(userInput, { preset: "llm" });
+ * ```
+ */
+export declare function parseMarkdown(input: MarkdownInput, options?: ParseOptions): MarkdownAst;
+
+/**
+ * Render Markdown to an HTML string.
+ *
+ * Use `safe: true` or `preset: "safe"` for any untrusted input.
+ *
+ * @param input - Markdown source.
+ * @param options - Optional render options.
+ * @returns HTML string.
+ *
+ * @example
+ * ```ts
+ * import { renderHtml } from "ironmark";
+ *
+ * const html = renderHtml("# Hello");
+ * const safeHtml = renderHtml(userInput, { safe: true });
+ * ```
+ */
+export declare function renderHtml(input: MarkdownInput, options?: RenderHtmlOptions): string;
+
+/**
+ * Render an AST back to a Markdown string.
+ *
+ * Pass the result of `parseMarkdown()` directly — accepts an AST object or
+ * a JSON string. Useful for normalizing Markdown or round-trip conversion.
+ *
+ * @param ast - AST from `parseMarkdown()`, or a JSON string.
+ * @returns Markdown string.
+ *
+ * @example
+ * ```ts
+ * import { parseMarkdown, renderMarkdown } from "ironmark";
+ *
+ * const ast = parseMarkdown("**Hello**");
+ * const md = renderMarkdown(ast);
+ * ```
+ */
+export declare function renderMarkdown(ast: MarkdownAst | string): string;
+
+/**
+ * Render Markdown as ANSI-coloured terminal output.
+ *
+ * Produces a string with ANSI 256-colour escape codes suitable for TTY display.
+ *
+ * @param input - Markdown source.
+ * @param options - Optional parse options.
+ * @param ansiOptions - Optional ANSI rendering options.
+ * @returns String with ANSI escape codes.
+ *
+ * @example
+ * ```ts
+ * import { renderAnsiTerminal } from "ironmark";
+ *
+ * process.stdout.write(renderAnsiTerminal("# Hello\n\n**bold**"));
+ * ```
+ */
+export declare function renderAnsiTerminal(
+  input: MarkdownInput,
+  options?: ParseOptions,
+  ansiOptions?: AnsiOptions,
+): string;
+
+/**
+ * Parse an HTML string and return the AST as a JavaScript object.
+ *
+ * Converts HTML into the same AST structure used by the Markdown parser,
+ * enabling HTML → Markdown conversion via `renderMarkdown()`.
+ *
+ * @param html - HTML source string.
+ * @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML.
+ * @returns Parsed AST object.
+ *
+ * @example
+ * ```ts
+ * import { parseHtmlToAst, renderMarkdown } from "ironmark";
+ *
+ * const ast = parseHtmlToAst("<h1>Hello</h1><p>World</p>");
+ * const md = renderMarkdown(ast);
+ * ```
+ */
+export declare function parseHtmlToAst(html: string, preserveUnknownAsHtml?: boolean): MarkdownAst;
 
 /**
  * Convert HTML to Markdown.
  *
- * This parses HTML and renders it as Markdown syntax.
- *
  * @param html - HTML source string.
- * @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML in output.
+ * @param preserveUnknownAsHtml - If true, unknown HTML tags are preserved as raw HTML.
  * @returns Markdown string.
  *
  * @example
  * ```ts
  * import { htmlToMarkdown } from "ironmark";
+ *
  * const md = htmlToMarkdown("<p><strong>Bold</strong> text</p>");
  * // Returns: "**Bold** text"
  * ```
  */
 export declare function htmlToMarkdown(html: string, preserveUnknownAsHtml?: boolean): string;
 
+// ─── Introspection helpers ────────────────────────────────────────────────────
+
 /**
- * Render an AST (as JSON) to Markdown.
- *
- * This takes a JSON string representing an ironmark AST and renders it as Markdown.
- *
- * @param astJson - JSON string representing the AST (as returned by `parseToAst` or `parseHtmlToAst`).
- * @returns Markdown string.
+ * Return machine-readable metadata about this ironmark build.
  *
  * @example
  * ```ts
- * import { parseToAst, renderMarkdown } from "ironmark";
- * const ast = parseToAst("# Hello\n\n**World**");
- * const md = renderMarkdown(ast);
+ * import { getCapabilities } from "ironmark";
+ * const caps = getCapabilities();
+ * // { astSchemaVersion: "2", formats: [...], presets: [...], ... }
  * ```
  */
-export declare function renderMarkdown(astJson: string): string;
+export declare function getCapabilities(): Capabilities;
+
+/**
+ * Return the current AST schema version string.
+ * An increment signals a breaking change to the AST node shape.
+ */
+export declare function getAstSchemaVersion(): string;
+
+/**
+ * Return the resolved default `ParseOptions` — the effective value of every
+ * option when none are specified.
+ */
+export declare function getDefaultOptions(): Required<
+  Omit<ParseOptions, "preset" | "safe" | "deterministic" | "stableAst">
+>;
+
+/**
+ * Return all named presets and their resolved option objects.
+ *
+ * @example
+ * ```ts
+ * import { getPresets } from "ironmark";
+ * const { llm } = getPresets();
+ * ```
+ */
+export declare function getPresets(): Record<PresetName, Partial<ParseOptions>>;
+
+// ─── Utility functions ────────────────────────────────────────────────────────
+
+/**
+ * Extract all headings from a parsed AST.
+ *
+ * Returns level, plain-text content, and a slugified `id` for each heading.
+ *
+ * @example
+ * ```ts
+ * import { parseMarkdown, extractHeadings } from "ironmark";
+ *
+ * const headings = extractHeadings(parseMarkdown("# Hello\n\n## World"));
+ * // [{ level: 1, text: "Hello", id: "hello" }, { level: 2, text: "World", id: "world" }]
+ * ```
+ */
+export declare function extractHeadings(ast: MarkdownAst): HeadingInfo[];
+
+/**
+ * Summarize an AST: count top-level blocks and all node types.
+ *
+ * @example
+ * ```ts
+ * import { parseMarkdown, summarizeAst } from "ironmark";
+ *
+ * const summary = summarizeAst(parseMarkdown("# Hello\n\nA paragraph.\n\n- item"));
+ * // { blockCount: 3, nodeCounts: { Heading: 1, Paragraph: 1, List: 1, ... } }
+ * ```
+ */
+export declare function summarizeAst(ast: MarkdownAst): AstSummary;

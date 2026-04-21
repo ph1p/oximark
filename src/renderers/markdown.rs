@@ -2,16 +2,16 @@ use crate::ast::{Block, ListKind, TableAlignment, TableData};
 
 /// Renders an AST back into a Markdown string.
 ///
-/// This function converts a parsed AST (from `parse_to_ast` or `parse_html_to_ast`)
+/// This function converts a parsed AST (from `parse_markdown` or `parse_html_to_ast`)
 /// back into Markdown syntax.
 ///
 /// # Examples
 ///
 /// ```
-/// use ironmark::{parse_to_ast, ParseOptions};
+/// use ironmark::{parse_markdown, ParseOptions};
 /// use ironmark::render_markdown;
 ///
-/// let ast = parse_to_ast("# Hello\n\n**world**", &ParseOptions::default());
+/// let ast = parse_markdown("# Hello\n\n**world**", &ParseOptions::default());
 /// let md = render_markdown(&ast);
 /// assert!(md.contains("# Hello"));
 /// ```

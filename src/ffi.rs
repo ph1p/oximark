@@ -2,7 +2,7 @@ use std::ffi::{CStr, CString, c_char};
 
 use crate::ParseOptions;
 #[cfg(feature = "html")]
-use crate::parse;
+use crate::render_html;
 
 /// Parse markdown input and return a heap-allocated HTML string.
 ///
@@ -14,7 +14,7 @@ use crate::parse;
 /// `input` must be a valid, null-terminated C string.
 #[cfg(feature = "html")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn ironmark_parse(input: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn ironmark_render_html(input: *const c_char) -> *mut c_char {
     if input.is_null() {
         return std::ptr::null_mut();
     }
@@ -23,22 +23,22 @@ pub unsafe extern "C" fn ironmark_parse(input: *const c_char) -> *mut c_char {
     let Ok(markdown) = c_str.to_str() else {
         return std::ptr::null_mut();
     };
-    let html = parse(markdown, &ParseOptions::default());
+    let html = render_html(markdown, &ParseOptions::default());
     match CString::new(html) {
         Ok(c) => c.into_raw(),
         Err(_) => std::ptr::null_mut(),
     }
 }
 
-/// Free a string previously returned by [`ironmark_parse`].
+/// Free a string previously returned by [`ironmark_render_html`].
 ///
 /// # Safety
 ///
-/// `ptr` must be a pointer returned by `ironmark_parse`, or null.
+/// `ptr` must be a pointer returned by `ironmark_render_html`, or null.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ironmark_free(ptr: *mut c_char) {
     if !ptr.is_null() {
-        // SAFETY: `ptr` was produced by `CString::into_raw` in `ironmark_parse`.
+        // SAFETY: `ptr` was produced by `CString::into_raw` in `ironmark_render_html`.
         drop(unsafe { CString::from_raw(ptr) });
     }
 }

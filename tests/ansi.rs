@@ -1,4 +1,4 @@
-use ironmark::{AnsiOptions, ParseOptions, render_ansi};
+use ironmark::{AnsiOptions, ParseOptions, render_ansi_terminal};
 
 fn opts() -> ParseOptions {
     ParseOptions {
@@ -8,7 +8,7 @@ fn opts() -> ParseOptions {
 }
 
 fn plain(md: &str) -> String {
-    render_ansi(
+    render_ansi_terminal(
         md,
         &opts(),
         Some(&AnsiOptions {
@@ -19,7 +19,7 @@ fn plain(md: &str) -> String {
 }
 
 fn colored(md: &str) -> String {
-    render_ansi(md, &opts(), None)
+    render_ansi_terminal(md, &opts(), None)
 }
 
 // ── defaults ──────────────────────────────────────────────────────────────────
@@ -45,8 +45,8 @@ fn color_false_strips_all_escapes() {
 
 #[test]
 fn none_ansi_opts_uses_defaults() {
-    let with_none = render_ansi("# Hi", &opts(), None);
-    let with_default = render_ansi("# Hi", &opts(), Some(&AnsiOptions::default()));
+    let with_none = render_ansi_terminal("# Hi", &opts(), None);
+    let with_default = render_ansi_terminal("# Hi", &opts(), Some(&AnsiOptions::default()));
     assert_eq!(with_none, with_default);
 }
 
@@ -145,7 +145,7 @@ fn thematic_break_produces_output() {
 
 #[test]
 fn line_numbers_appear_in_code_block() {
-    let out = render_ansi(
+    let out = render_ansi_terminal(
         "```\nline one\nline two\nline three\n```",
         &opts(),
         Some(&AnsiOptions {
@@ -162,7 +162,7 @@ fn line_numbers_appear_in_code_block() {
 
 #[test]
 fn line_numbers_absent_by_default() {
-    let with_nums = render_ansi(
+    let with_nums = render_ansi_terminal(
         "```\na\nb\n```",
         &opts(),
         Some(&AnsiOptions {
@@ -171,7 +171,7 @@ fn line_numbers_absent_by_default() {
             ..AnsiOptions::default()
         }),
     );
-    let without_nums = render_ansi(
+    let without_nums = render_ansi_terminal(
         "```\na\nb\n```",
         &opts(),
         Some(&AnsiOptions {
@@ -186,7 +186,7 @@ fn line_numbers_absent_by_default() {
 #[test]
 fn padding_adds_horizontal_spaces_to_each_line() {
     let long = "word ".repeat(25);
-    let out = render_ansi(
+    let out = render_ansi_terminal(
         long.trim(),
         &opts(),
         Some(&AnsiOptions {
@@ -218,7 +218,7 @@ fn padding_adds_horizontal_spaces_to_each_line() {
 #[test]
 fn narrow_width_wraps_long_paragraph() {
     let long = "word ".repeat(30);
-    let out = render_ansi(
+    let out = render_ansi_terminal(
         long.trim(),
         &opts(),
         Some(&AnsiOptions {
@@ -242,7 +242,7 @@ fn narrow_width_wraps_long_paragraph() {
 // ── responsive tables ────────────────────────────────────────────────────────
 
 fn render_width(md: &str, width: usize) -> String {
-    render_ansi(
+    render_ansi_terminal(
         md,
         &opts(),
         Some(&AnsiOptions {

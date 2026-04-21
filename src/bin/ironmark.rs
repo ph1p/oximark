@@ -14,11 +14,11 @@
 //!
 //! | Flag | Description |
 //! |---|---|
-//! | `--format <html\|ansi\|ast>` | Output format: html (default), ansi, ast (alias: json) |
-//! | `--width N` | Terminal column width for word-wrap (ansi only; default: auto-detect) |
+//! | `-f`, `--format <html\|ansi\|ast>` | Output format: html (default), ansi, ast (alias: json) |
+//! | `-w`, `--width N` | Terminal column width for word-wrap (ansi only; default: auto-detect) |
 //! | `--no-color` / `--no-colour` | Disable ANSI escape codes (ansi only) |
 //! | `-n`, `--line-numbers` | Show line numbers in fenced code blocks (ansi only) |
-//! | `--padding N` | Horizontal padding (ansi only) |
+//! | `-p`, `--padding N` | Horizontal padding (ansi only) |
 //! | `--no-hard-breaks` | Don't convert newlines inside paragraphs to `<br>` |
 //! | `--no-tables` | Disable pipe table syntax |
 //! | `--no-highlight` | Disable `==highlight==` syntax |
@@ -36,10 +36,10 @@
 //!
 //! ```text
 //! echo '# Hello' | ironmark
-//! ironmark --format ansi README.md
-//! ironmark --format ast README.md
-//! ironmark --format ansi --width 80 README.md
-//! cat doc.md | ironmark --format ansi --math --wiki-links
+//! ironmark -f ansi README.md
+//! ironmark -f ast README.md
+//! ironmark -f ansi -w 80 README.md
+//! cat doc.md | ironmark -f ansi --math --wiki-links
 //! ```
 
 use std::io::{self, IsTerminal, Read};
@@ -56,26 +56,26 @@ USAGE:
     Default format is html.
 
 OPTIONS (all formats):
-    --format <html|ansi|ast>  Output format; ast also accepts 'json' (default: html)
-    --no-hard-breaks          Don't turn soft newlines into hard line breaks
-    --no-tables               Disable pipe table syntax
-    --no-highlight            Disable ==highlight== syntax
-    --no-strikethrough        Disable ~~strikethrough~~ syntax
-    --no-underline            Disable ++underline++ syntax
-    --no-autolink             Disable bare URL auto-linking
-    --no-task-lists           Disable - [x] task list syntax
-    --math                    Enable $inline$ and $$display$$ math
-    --wiki-links              Enable [[wiki link]] syntax
-    --max-size N              Truncate input to N bytes (0 = unlimited)
-    -h, --help                Print this help and exit
-    -V, --version             Print version and exit
+    -f, --format <html|ansi|ast>  Output format; ast also accepts 'json' (default: html)
+    --no-hard-breaks              Don't turn soft newlines into hard line breaks
+    --no-tables                   Disable pipe table syntax
+    --no-highlight                Disable ==highlight== syntax
+    --no-strikethrough            Disable ~~strikethrough~~ syntax
+    --no-underline                Disable ++underline++ syntax
+    --no-autolink                 Disable bare URL auto-linking
+    --no-task-lists               Disable - [x] task list syntax
+    --math                        Enable $inline$ and $$display$$ math
+    --wiki-links                  Enable [[wiki link]] syntax
+    --max-size N                  Truncate input to N bytes (0 = unlimited)
+    -h, --help                    Print this help and exit
+    -V, --version                 Print version and exit
 
 OPTIONS (ansi format only):
-    --width N            Terminal column width for word-wrap and heading underlines
+    -w, --width N        Terminal column width for word-wrap and heading underlines
                          (default: auto-detect via $COLUMNS / tput cols, fallback 80)
     --no-color           Disable ANSI escape codes (plain text)
     -n, --line-numbers   Show line numbers in fenced code blocks
-    --padding N          Add horizontal padding to output
+    -p, --padding N      Add horizontal padding to output
 
 EXAMPLES:
     echo '# Hello' | ironmark
@@ -114,7 +114,7 @@ fn main() {
                 println!("ironmark {VERSION}");
                 return;
             }
-            "--format" => {
+            "-f" | "--format" => {
                 i += 1;
                 if i >= args.len() {
                     eprintln!("error: --format requires a value");
@@ -133,7 +133,7 @@ fn main() {
             "--no-task-lists" => parse_opts.enable_task_lists = false,
             "--math" => parse_opts.enable_latex_math = true,
             "--wiki-links" => parse_opts.enable_wiki_links = true,
-            "--width" => {
+            "-w" | "--width" => {
                 i += 1;
                 if i >= args.len() {
                     eprintln!("error: --width requires a value");
@@ -141,7 +141,7 @@ fn main() {
                 }
                 width = Some(parse_usize_arg("--width", &args[i]));
             }
-            "--padding" => {
+            "-p" | "--padding" => {
                 i += 1;
                 if i >= args.len() {
                     eprintln!("error: --padding requires a value");
@@ -241,13 +241,13 @@ fn main() {
     }
 
     match fmt {
-        "html" => print!("{}", ironmark::parse(&input, &parse_opts)),
+        "html" => print!("{}", ironmark::render_html(&input, &parse_opts)),
         "ansi" => print!(
             "{}",
-            ironmark::render_ansi(&input, &parse_opts, Some(&aopts))
+            ironmark::render_ansi_terminal(&input, &parse_opts, Some(&aopts))
         ),
         "ast" | "json" => {
-            let ast = ironmark::parse_to_ast(&input, &parse_opts);
+            let ast = ironmark::parse_markdown(&input, &parse_opts);
             println!("{ast:#?}");
         }
         _ => {

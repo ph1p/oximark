@@ -1,11 +1,17 @@
 import * as wasmGlue from "./pkg/ironmark_bg.js";
 import {
-  createParse,
-  createParseToAst,
-  createRenderAnsi,
+  createParseMarkdown,
+  createRenderHtml,
+  createRenderMarkdown,
+  createRenderAnsiTerminal,
   createParseHtmlToAst,
   createHtmlToMarkdown,
-  createRenderMarkdown,
+  getCapabilities,
+  getAstSchemaVersion,
+  getDefaultOptions,
+  getPresets,
+  extractHeadings,
+  summarizeAst,
 } from "./shared.js";
 
 let initialized = false;
@@ -34,9 +40,12 @@ export async function init(input) {
   initialized = true;
 }
 
-export const parse = createParse(wasmGlue.parse, wasmGlue.parseDefault);
-export const parseToAst = createParseToAst(wasmGlue.parseToAst);
-export const renderAnsi = createRenderAnsi(wasmGlue.renderAnsi);
+export const parseMarkdown = createParseMarkdown(wasmGlue.parseToAst);
+export const renderHtml = createRenderHtml(wasmGlue.parse, wasmGlue.parseDefault);
+export const renderMarkdown = createRenderMarkdown(wasmGlue.renderMarkdown);
+export const renderAnsiTerminal = createRenderAnsiTerminal(wasmGlue.renderAnsi);
 export const parseHtmlToAst = createParseHtmlToAst(wasmGlue.parseHtmlToAst);
 export const htmlToMarkdown = createHtmlToMarkdown(wasmGlue.htmlToMarkdown);
-export const renderMarkdown = createRenderMarkdown(wasmGlue.renderMarkdown);
+
+export { getCapabilities, getAstSchemaVersion, getDefaultOptions, getPresets };
+export { extractHeadings, summarizeAst };

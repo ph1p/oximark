@@ -51,7 +51,7 @@ const allFeaturesInput = loadAllFeatures();
 
 // ─── Run WASM benchmarks ────────────────────────────────────────────
 
-const { parse: ironmarkParse } = await import("../wasm/node.js");
+const { renderHtml: ironmarkParse } = await import("../wasm/node.js");
 const markdownWasm = require("markdown-wasm/dist/markdown.node.js");
 const { init: md4wInit, mdToHtml } = await import("md4w");
 await md4wInit();

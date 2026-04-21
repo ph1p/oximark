@@ -2,7 +2,7 @@ use compact_str::CompactString;
 
 /// A block-level node in the parsed Markdown document.
 ///
-/// Returned by [`parse_to_ast`](crate::parse_to_ast). The root is always
+/// Returned by [`parse_markdown`](crate::parse_markdown). The root is always
 /// [`Block::Document`]; all other variants appear as children.
 ///
 /// `raw` fields on leaf nodes (`Paragraph`, `Heading`) contain the raw inline
@@ -11,7 +11,7 @@ use compact_str::CompactString;
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Block {
-    /// Root node — always the outermost block returned by [`parse_to_ast`](crate::parse_to_ast).
+    /// Root node — always the outermost block returned by [`parse_markdown`](crate::parse_markdown).
     Document { children: Vec<Block> },
     /// A `>` blockquote. May contain any block-level children.
     BlockQuote { children: Vec<Block> },
@@ -65,8 +65,8 @@ pub enum Block {
 /// separately in `header`.
 ///
 /// ```
-/// # use ironmark::{parse_to_ast, Block, ParseOptions};
-/// let ast = parse_to_ast("| A | B |\n|---|---|\n| 1 | 2 |", &ParseOptions::default());
+/// # use ironmark::{parse_markdown, Block, ParseOptions};
+/// let ast = parse_markdown("| A | B |\n|---|---|\n| 1 | 2 |", &ParseOptions::default());
 /// if let Block::Document { children } = ast {
 ///     if let Block::Table(t) = &children[0] {
 ///         assert_eq!(t.header[0], "A");

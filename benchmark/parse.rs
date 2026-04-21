@@ -1,7 +1,7 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use ironmark::{
     __benchmark_heading_slug, __benchmark_parse_inline, __benchmark_parse_table_row, ParseOptions,
-    parse,
+    render_html,
 };
 
 type BenchCase = (&'static str, fn() -> String);
@@ -246,7 +246,7 @@ fn parsers() -> Vec<(&'static str, ParserFn)> {
 }
 
 fn parse_ironmark(input: &str) -> String {
-    parse(input, &ParseOptions::default())
+    render_html(input, &ParseOptions::default())
 }
 
 fn parse_pulldown_cmark(input: &str) -> String {

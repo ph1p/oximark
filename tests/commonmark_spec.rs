@@ -1,4 +1,4 @@
-use ironmark::{ParseOptions, parse};
+use ironmark::{ParseOptions, render_html};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -26,7 +26,7 @@ fn commonmark_0_31_2_spec() {
             enable_autolink: false,
             ..Default::default()
         };
-        let result = parse(&test.markdown, &opts);
+        let result = render_html(&test.markdown, &opts);
         let entry = section_stats.entry(test.section.clone()).or_insert((0, 0));
         if result == test.html {
             pass += 1;

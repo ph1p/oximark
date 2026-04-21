@@ -12,7 +12,7 @@
  *
  * Basic usage:
  *
- *   char *html = ironmark_parse("# Hello\n");
+ *   char *html = ironmark_render_html("# Hello\n");
  *   if (html) {
  *       printf("%s\n", html);
  *       ironmark_free(html);
@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 /**
- * ironmark_parse — parse Markdown and return an HTML string.
+ * ironmark_render_html — parse Markdown and return an HTML string.
  *
  * @param input  Null-terminated UTF-8 Markdown string.
  * @return       Heap-allocated, null-terminated HTML string.
@@ -49,12 +49,12 @@ extern "C" {
  * Dangerous URI schemes (javascript:, vbscript:, data: except data:image/…)
  * are always stripped regardless of options.
  */
-char *ironmark_parse(const char *input);
+char *ironmark_render_html(const char *input);
 
 /**
- * ironmark_free — free a string returned by ironmark_parse.
+ * ironmark_free — free a string returned by ironmark_render_html.
  *
- * @param ptr  Pointer returned by ironmark_parse, or NULL (no-op).
+ * @param ptr  Pointer returned by ironmark_render_html, or NULL (no-op).
  *
  * Passing any other pointer is undefined behaviour.
  */

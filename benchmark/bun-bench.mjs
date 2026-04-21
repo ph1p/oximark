@@ -40,7 +40,7 @@ import {
 const require = createRequire(import.meta.url);
 
 log("Loading parsers...");
-const { parse: ironmarkParse } = await import("../wasm/node.js");
+const { renderHtml: ironmarkParse } = await import("../wasm/node.js");
 const markdownWasm = require("markdown-wasm/dist/markdown.node.js");
 const { init: md4wInit, mdToHtml } = await import("md4w");
 await md4wInit();

@@ -26,13 +26,13 @@ use crate::render::render_block;
 /// # Examples
 ///
 /// ```
-/// use ironmark::{parse, ParseOptions};
+/// use ironmark::{render_html, ParseOptions};
 ///
-/// let html = parse("**bold** and *italic*", &ParseOptions::default());
+/// let html = render_html("**bold** and *italic*", &ParseOptions::default());
 /// assert!(html.contains("<strong>bold</strong>"));
 /// ```
 #[cfg(feature = "html")]
-pub fn parse(markdown: &str, options: &ParseOptions) -> String {
+pub fn render_html(markdown: &str, options: &ParseOptions) -> String {
     let markdown = if options.max_input_size > 0 && markdown.len() > options.max_input_size {
         // Truncate at a valid UTF-8 boundary
         let mut end = options.max_input_size;
@@ -65,9 +65,9 @@ pub fn parse(markdown: &str, options: &ParseOptions) -> String {
 /// # Examples
 ///
 /// ```
-/// use ironmark::{parse_to_ast, ParseOptions, Block};
+/// use ironmark::{parse_markdown, ParseOptions, Block};
 ///
-/// let ast = parse_to_ast("# Hello", &ParseOptions::default());
+/// let ast = parse_markdown("# Hello", &ParseOptions::default());
 /// match &ast {
 ///     Block::Document { children } => {
 ///         assert_eq!(children.len(), 1);
@@ -75,7 +75,7 @@ pub fn parse(markdown: &str, options: &ParseOptions) -> String {
 ///     _ => panic!("expected Document"),
 /// }
 /// ```
-pub fn parse_to_ast(markdown: &str, options: &ParseOptions) -> Block {
+pub fn parse_markdown(markdown: &str, options: &ParseOptions) -> Block {
     let markdown = if options.max_input_size > 0 && markdown.len() > options.max_input_size {
         let mut end = options.max_input_size;
         while end > 0 && !markdown.is_char_boundary(end) {

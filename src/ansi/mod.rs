@@ -5,7 +5,7 @@
 //!
 //! # Entry points
 //!
-//! - [`render_ansi`] — render with optional [`AnsiOptions`] (defaults used when `None`).
+//! - [`render_ansi_terminal`] — render with optional [`AnsiOptions`] (defaults used when `None`).
 //!
 //! # Module layout
 //!
@@ -19,15 +19,15 @@
 //! # Examples
 //!
 //! ```
-//! use ironmark::{render_ansi, AnsiOptions, ParseOptions};
+//! use ironmark::{render_ansi_terminal, AnsiOptions, ParseOptions};
 //!
 //! // Simple usage — defaults (width 80, colour on)
-//! let out = render_ansi("# Hello\n\n**bold** and *italic*", &ParseOptions::default(), None);
+//! let out = render_ansi_terminal("# Hello\n\n**bold** and *italic*", &ParseOptions::default(), None);
 //! assert!(out.contains("Hello"));
 //!
 //! // With custom width and disabled colour (e.g. for piping)
 //! let opts = AnsiOptions { width: 80, color: false, ..AnsiOptions::default() };
-//! let plain = render_ansi("# Hello", &ParseOptions::default(), Some(&opts));
+//! let plain = render_ansi_terminal("# Hello", &ParseOptions::default(), Some(&opts));
 //! assert!(!plain.contains('\x1b'));
 //! ```
 
@@ -45,7 +45,7 @@ use renderer::AnsiRenderer;
 
 /// Display options for the ANSI terminal renderer.
 ///
-/// Pass to [`render_ansi`] to control how the output looks.
+/// Pass to [`render_ansi_terminal`] to control how the output looks.
 ///
 /// # Defaults
 ///
@@ -110,24 +110,28 @@ impl Default for AnsiOptions {
 /// # Examples
 ///
 /// ```
-/// use ironmark::{render_ansi, AnsiOptions, ParseOptions};
+/// use ironmark::{render_ansi_terminal, AnsiOptions, ParseOptions};
 ///
 /// // Defaults
-/// let out = render_ansi("# Hello\n\n**bold**", &ParseOptions::default(), None);
+/// let out = render_ansi_terminal("# Hello\n\n**bold**", &ParseOptions::default(), None);
 /// assert!(out.contains("Hello"));
 /// assert!(out.contains('\x1b'));
 ///
 /// // Plain text (no ANSI escapes)
 /// let opts = AnsiOptions { color: false, ..AnsiOptions::default() };
-/// let plain = render_ansi("# Hello\n\n> quote", &ParseOptions::default(), Some(&opts));
+/// let plain = render_ansi_terminal("# Hello\n\n> quote", &ParseOptions::default(), Some(&opts));
 /// assert!(!plain.contains('\x1b'));
 ///
 /// // Line numbers in code blocks
 /// let opts = AnsiOptions { line_numbers: true, ..AnsiOptions::default() };
-/// let out = render_ansi("```rust\nfn main() {}\n```", &ParseOptions::default(), Some(&opts));
+/// let out = render_ansi_terminal("```rust\nfn main() {}\n```", &ParseOptions::default(), Some(&opts));
 /// assert!(out.contains('1'));
 /// ```
-pub fn render_ansi(markdown: &str, options: &ParseOptions, aopts: Option<&AnsiOptions>) -> String {
+pub fn render_ansi_terminal(
+    markdown: &str,
+    options: &ParseOptions,
+    aopts: Option<&AnsiOptions>,
+) -> String {
     let default_aopts;
     let aopts = match aopts {
         Some(a) => a,

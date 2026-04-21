@@ -7,8 +7,8 @@
 //! These tests verify semantic preservation, not exact string equality.
 
 use ironmark::{
-    HtmlParseOptions, ParseOptions, html_to_markdown, parse, parse_html_to_ast, parse_to_ast,
-    render_markdown,
+    HtmlParseOptions, ParseOptions, html_to_markdown, parse_html_to_ast, parse_markdown,
+    render_html, render_markdown,
 };
 
 fn md_opts() -> ParseOptions {
@@ -29,7 +29,7 @@ mod md_html_md {
     use super::*;
 
     fn roundtrip(markdown: &str) -> String {
-        let html = parse(markdown, &md_opts());
+        let html = render_html(markdown, &md_opts());
         html_to_markdown(&html, &html_opts())
     }
 
@@ -237,7 +237,7 @@ mod html_md_html {
 
     fn roundtrip(html: &str) -> String {
         let md = html_to_markdown(html, &html_opts());
-        parse(&md, &md_opts())
+        render_html(&md, &md_opts())
     }
 
     fn contains_tag(html: &str, tag: &str) -> bool {
@@ -370,7 +370,7 @@ mod ast_roundtrip {
     use super::*;
 
     fn roundtrip(markdown: &str) -> String {
-        let ast = parse_to_ast(markdown, &md_opts());
+        let ast = parse_markdown(markdown, &md_opts());
         render_markdown(&ast)
     }
 
@@ -423,11 +423,11 @@ mod ast_roundtrip {
 
     #[test]
     fn readme_md_html_md_ast_md() {
-        let html = parse(README_FIXTURE, &md_opts());
+        let html = render_html(README_FIXTURE, &md_opts());
         let normalized_md = html_to_markdown(&html, &html_opts());
-        let ast = parse_to_ast(&normalized_md, &md_opts());
+        let ast = parse_markdown(&normalized_md, &md_opts());
         let final_md = render_markdown(&ast);
-        let reparsed_ast = parse_to_ast(&final_md, &md_opts());
+        let reparsed_ast = parse_markdown(&final_md, &md_opts());
 
         assert_eq!(reparsed_ast, ast);
         assert!(final_md.contains("# ironmark"));
@@ -446,7 +446,7 @@ mod html_ast_roundtrip {
     fn roundtrip(html: &str) -> String {
         let ast = parse_html_to_ast(html, &html_opts());
         let md = render_markdown(&ast);
-        parse(&md, &md_opts())
+        render_html(&md, &md_opts())
     }
 
     #[test]

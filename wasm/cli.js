@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { parse, parseToAst, renderAnsi } from "./node.js";
+import {
+  renderHtml,
+  parseMarkdown,
+  renderAnsiTerminal,
+  getCapabilities,
+  getDefaultOptions,
+  getPresets,
+} from "./node.js";
 
 const VERSION = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -15,18 +22,23 @@ USAGE:
     Default format is html.
 
 OPTIONS (all formats):
-    --format <html|ansi|ast>  Output format; ast also accepts 'json' (default: html)
-    --no-hard-breaks          Don't turn soft newlines into hard line breaks
-    --no-tables               Disable pipe table syntax
-    --no-highlight            Disable ==highlight== syntax
-    --no-strikethrough        Disable ~~strikethrough~~ syntax
-    --no-underline            Disable ++underline++ syntax
-    --no-autolink             Disable bare URL auto-linking
-    --no-task-lists           Disable - [x] task list syntax
-    --math                    Enable $inline$ and $$display$$ math
-    --wiki-links              Enable [[wiki link]] syntax
-    -h, --help                Print this help and exit
-    -V, --version             Print version and exit
+    --format <html|ansi|ast>    Output format; ast also accepts 'json' (default: html)
+    --preset <name>             Apply a named option preset: default, safe, strict, llm
+    --safe                      Alias for --preset safe (disable raw HTML, enable tag filter)
+    --no-hard-breaks            Don't turn soft newlines into hard line breaks
+    --no-tables                 Disable pipe table syntax
+    --no-highlight              Disable ==highlight== syntax
+    --no-strikethrough          Disable ~~strikethrough~~ syntax
+    --no-underline              Disable ++underline++ syntax
+    --no-autolink               Disable bare URL auto-linking
+    --no-task-lists             Disable - [x] task list syntax
+    --math                      Enable $inline$ and $$display$$ math
+    --wiki-links                Enable [[wiki link]] syntax
+    --capabilities              Print machine-readable capabilities JSON and exit
+    --default-options           Print resolved default options JSON and exit
+    --list-presets              Print all preset names and their options and exit
+    -h, --help                  Print this help and exit
+    -V, --version               Print version and exit
 
 OPTIONS (ansi format only):
     --width N            Terminal column width (default: auto-detect, fallback 80)
@@ -41,6 +53,9 @@ EXAMPLES:
     npx ironmark --format ast README.md
     npx ironmark --format ansi --width 120 --no-color README.md | less
     cat doc.md | npx ironmark --format ansi --math --wiki-links
+    npx ironmark --safe README.md
+    npx ironmark --preset llm README.md
+    npx ironmark --capabilities
 `;
 
 const args = process.argv.slice(2);
@@ -61,6 +76,18 @@ for (let i = 0; i < args.length; i++) {
       console.log(`ironmark ${VERSION}`);
       process.exit(0);
       break;
+    case "--capabilities":
+      process.stdout.write(JSON.stringify(getCapabilities(), null, 2) + "\n");
+      process.exit(0);
+      break;
+    case "--default-options":
+      process.stdout.write(JSON.stringify(getDefaultOptions(), null, 2) + "\n");
+      process.exit(0);
+      break;
+    case "--list-presets":
+      process.stdout.write(JSON.stringify(getPresets(), null, 2) + "\n");
+      process.exit(0);
+      break;
     case "--format": {
       const val = args[++i];
       if (val === undefined) {
@@ -70,6 +97,18 @@ for (let i = 0; i < args.length; i++) {
       format = val;
       break;
     }
+    case "--preset": {
+      const val = args[++i];
+      if (val === undefined) {
+        console.error("error: --preset requires a value (default, safe, strict, llm)");
+        process.exit(2);
+      }
+      parseOptions.preset = val;
+      break;
+    }
+    case "--safe":
+      parseOptions.safe = true;
+      break;
     case "--no-color":
     case "--no-colour":
       ansiOptions.color = false;
@@ -188,9 +227,9 @@ if (files.length === 0) {
 }
 
 if (fmt === "html") {
-  process.stdout.write(parse(input, parseOptions));
+  process.stdout.write(renderHtml(input, parseOptions));
 } else if (fmt === "ansi") {
-  process.stdout.write(renderAnsi(input, parseOptions, ansiOptions));
+  process.stdout.write(renderAnsiTerminal(input, parseOptions, ansiOptions));
 } else {
-  process.stdout.write(JSON.stringify(parseToAst(input, parseOptions), null, 2) + "\n");
+  process.stdout.write(JSON.stringify(parseMarkdown(input, parseOptions), null, 2) + "\n");
 }

@@ -7,10 +7,10 @@
 //! ## Usage
 //!
 //! ```
-//! use ironmark::{parse, ParseOptions};
+//! use ironmark::{render_html, ParseOptions};
 //!
 //! // With defaults (all extensions enabled)
-//! let html = parse("# Hello, **world**!", &ParseOptions::default());
+//! let html = render_html("# Hello, **world**!", &ParseOptions::default());
 //!
 //! // Disable specific extensions
 //! let opts = ParseOptions {
@@ -18,7 +18,7 @@
 //!     enable_tables: false,
 //!     ..Default::default()
 //! };
-//! let html = parse("Plain CommonMark only.", &opts);
+//! let html = render_html("Plain CommonMark only.", &opts);
 //! ```
 //!
 //! ## Security
@@ -26,14 +26,14 @@
 //! When rendering **untrusted** input, enable these options:
 //!
 //! ```
-//! use ironmark::{parse, ParseOptions};
+//! use ironmark::{render_html, ParseOptions};
 //!
 //! let opts = ParseOptions {
 //!     disable_raw_html: true,  // escape HTML blocks & inline HTML
 //!     max_input_size: 1_000_000, // limit input to 1 MB
 //!     ..Default::default()
 //! };
-//! let html = parse("<script>alert(1)</script>", &opts);
+//! let html = render_html("<script>alert(1)</script>", &opts);
 //! assert!(!html.contains("<script>"));
 //! ```
 //!
@@ -86,17 +86,17 @@ pub mod ffi;
 
 // Core exports (always available)
 pub use ast::{Block, ListKind, TableAlignment, TableData};
-pub use block::parse_to_ast;
+pub use block::parse_markdown;
 pub use renderers::markdown::render_markdown;
 
 // Feature-gated exports
 #[cfg(feature = "ansi")]
-pub use ansi::{AnsiOptions, render_ansi};
+pub use ansi::{AnsiOptions, render_ansi_terminal};
 #[cfg(feature = "html")]
 #[doc(hidden)]
 pub use block::benchmark_parse_table_row as __benchmark_parse_table_row;
 #[cfg(feature = "html")]
-pub use block::parse;
+pub use block::render_html;
 #[cfg(feature = "html-parser")]
 pub use html_parser::{
     HtmlParseOptions, UnknownInlineHandling, html_to_markdown, parse_html_to_ast,
@@ -131,9 +131,9 @@ pub(crate) fn utf8_char_len(first: u8) -> usize {
 /// Construct with [`Default::default()`] and override only the fields you need:
 ///
 /// ```
-/// use ironmark::{parse, ParseOptions};
+/// use ironmark::{render_html, ParseOptions};
 ///
-/// let html = parse("~~strike~~ ==highlight==", &ParseOptions {
+/// let html = render_html("~~strike~~ ==highlight==", &ParseOptions {
 ///     enable_strikethrough: true,
 ///     enable_highlight: true,
 ///     ..Default::default()
