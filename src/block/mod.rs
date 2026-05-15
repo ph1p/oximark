@@ -45,9 +45,7 @@ pub fn render_html(markdown: &str, options: &ParseOptions) -> String {
     };
     let mut parser = BlockParser::new(markdown, options);
     parser.render_mode = true;
-    // Pre-allocate to avoid Vec growth reallocations during parse.
-    let estimated_blocks = (markdown.len() / 50).clamp(8, 256);
-    parser.code_src_ranges = Vec::with_capacity(estimated_blocks);
+    parser.code_src_ranges = Vec::with_capacity(estimate_block_count(markdown.len()));
     let doc = parser.parse();
     let mut out = if markdown.len() <= 256 {
         String::with_capacity(markdown.len() + 32)
@@ -108,7 +106,10 @@ pub fn benchmark_parse_table_row(line: &str, num_cols: usize) -> Vec<CompactStri
 
 #[cfg(feature = "html")]
 #[doc(hidden)]
-pub fn benchmark_render_html_parse_phase(markdown: &str, options: &ParseOptions) -> (Block, Vec<(u32, u32)>) {
+pub fn benchmark_render_html_parse_phase(
+    markdown: &str,
+    options: &ParseOptions,
+) -> (Block, Vec<(u32, u32)>) {
     let mut parser = BlockParser::new(markdown, options);
     parser.render_mode = true;
     let doc = parser.parse();
@@ -409,6 +410,11 @@ impl OpenBlock {
     }
 }
 
+#[inline(always)]
+fn estimate_block_count(input_len: usize) -> usize {
+    (input_len / 50).clamp(8, 256)
+}
+
 pub(crate) struct BlockParser<'a> {
     input: &'a str,
     pub(crate) ref_defs: LinkRefMap,
@@ -427,8 +433,6 @@ pub(crate) struct BlockParser<'a> {
     /// `Block::CodeBlock` will be empty; consumers check this vec via index.
     /// Index corresponds to the order code blocks appear in the document.
     pub(crate) code_src_ranges: Vec<(u32, u32)>,
-    /// Counter: how many code-block-by-range entries have been emitted.
-    code_src_count: u32,
     /// When `true`, fenced code blocks with no CR/indent can store a source range
     /// instead of copying the literal content. Used only by `render_html`; the public
     /// `parse_markdown` API always copies so callers get a fully-populated AST.
@@ -438,8 +442,7 @@ pub(crate) struct BlockParser<'a> {
 impl<'a> BlockParser<'a> {
     pub fn new(input: &'a str, options: &ParseOptions) -> Self {
         let mut doc = OpenBlock::new(OpenBlockType::Document);
-        let estimated_blocks = (input.len() / 50).clamp(8, 256);
-        doc.children = SmallVec::with_capacity(estimated_blocks);
+        doc.children = SmallVec::with_capacity(estimate_block_count(input.len()));
         let mut open = Vec::with_capacity(16);
         open.push(doc);
         Self {
@@ -456,7 +459,6 @@ impl<'a> BlockParser<'a> {
             permissive_atx_headers: options.permissive_atx_headers,
             no_html_blocks: options.no_html_blocks || options.disable_raw_html,
             code_src_ranges: Vec::new(),
-            code_src_count: 0,
             render_mode: false,
         }
     }

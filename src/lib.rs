@@ -96,6 +96,9 @@ pub use ansi::{AnsiOptions, render_ansi_terminal};
 #[doc(hidden)]
 pub use block::benchmark_parse_table_row as __benchmark_parse_table_row;
 #[cfg(feature = "html")]
+#[doc(hidden)]
+pub use block::benchmark_render_html_parse_phase as __benchmark_render_html_parse_phase;
+#[cfg(feature = "html")]
 pub use block::render_html;
 #[cfg(feature = "html-parser")]
 pub use html_parser::{
@@ -107,9 +110,6 @@ pub use inline::benchmark_parse_inline as __benchmark_parse_inline;
 #[cfg(feature = "html")]
 #[doc(hidden)]
 pub use render::benchmark_heading_slug as __benchmark_heading_slug;
-#[cfg(feature = "html")]
-#[doc(hidden)]
-pub use block::benchmark_render_html_parse_phase as __benchmark_render_html_parse_phase;
 
 #[inline(always)]
 pub(crate) fn is_ascii_punctuation(b: u8) -> bool {

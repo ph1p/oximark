@@ -70,6 +70,14 @@ enum Work<'a> {
     CloseTag(&'static str),
 }
 
+#[derive(Copy, Clone)]
+struct RenderCtx<'a> {
+    refs: &'a LinkRefMap,
+    opts: &'a ParseOptions,
+    source: &'a str,
+    code_src_ranges: &'a [(u32, u32)],
+}
+
 pub(crate) fn render_block(
     block: &Block,
     refs: &LinkRefMap,
@@ -79,39 +87,21 @@ pub(crate) fn render_block(
     source: &str,
     code_src_ranges: &[(u32, u32)],
 ) {
+    let ctx = RenderCtx { refs, opts, source, code_src_ranges };
     let mut code_src_idx: usize = 0;
 
     if let Block::Document { children } = block {
         match children.as_slice() {
             [child] => {
-                render_single_child_doc(
-                    child,
-                    refs,
-                    out,
-                    opts,
-                    bufs,
-                    source,
-                    code_src_ranges,
-                    &mut code_src_idx,
-                );
+                render_single_child_doc(child, ctx, out, bufs, &mut code_src_idx);
                 return;
             }
             children => {
-                // Fast path: iterate document children directly, falling back to stack only
+                // Fast path: iterate document children directly, using a local stack only
                 // for container blocks (blockquote, list, etc.). Leaf-only documents (common
                 // case) avoid allocating the Work stack entirely.
-                if render_document_children(
-                    children,
-                    refs,
-                    out,
-                    opts,
-                    bufs,
-                    source,
-                    code_src_ranges,
-                    &mut code_src_idx,
-                ) {
-                    return;
-                }
+                render_document_children(children, ctx, out, bufs, &mut code_src_idx);
+                return;
             }
         }
     }
@@ -123,76 +113,40 @@ pub(crate) fn render_block(
         match work {
             Work::CloseTag(tag) => out.push_str(tag),
             Work::TightListItem(block) => {
-                render_tight_list_item(
-                    block,
-                    refs,
-                    out,
-                    opts,
-                    bufs,
-                    &mut stack,
-                    source,
-                    code_src_ranges,
-                    &mut code_src_idx,
-                );
+                render_tight_list_item(block, ctx, out, bufs, &mut stack, &mut code_src_idx);
             }
             Work::TightBlock(block) => {
                 if let Block::Paragraph { raw } = block {
-                    push_inline_or_plain(out, raw, refs, opts, bufs);
+                    push_inline_or_plain(out, raw, ctx.refs, ctx.opts, bufs);
                 } else {
-                    render_one(
-                        block,
-                        refs,
-                        out,
-                        opts,
-                        bufs,
-                        &mut stack,
-                        source,
-                        code_src_ranges,
-                        &mut code_src_idx,
-                    );
+                    render_one(block, ctx, out, bufs, &mut stack, &mut code_src_idx);
                 }
             }
             Work::Block(block) => {
-                render_one(
-                    block,
-                    refs,
-                    out,
-                    opts,
-                    bufs,
-                    &mut stack,
-                    source,
-                    code_src_ranges,
-                    &mut code_src_idx,
-                );
+                render_one(block, ctx, out, bufs, &mut stack, &mut code_src_idx);
             }
         }
     }
 }
 
 /// Render all direct children of a Document block without allocating a Work stack.
-/// Renders leaf blocks inline; for container blocks (BlockQuote, List) it falls back
-/// to the stack path by returning `false`. The caller then re-enters via the stack path
-/// for the *remaining* children.
-///
-/// In practice, most documents contain only leaf blocks at the top level (paragraphs,
-/// headings, code blocks, HR), so this eliminates the `Vec<Work>` allocation entirely.
+/// Handles leaf blocks inline and container blocks via a local stack. In practice,
+/// most documents contain only leaf blocks at the top level (paragraphs, headings,
+/// code blocks, HR), so the common case avoids the `Vec<Work>` allocation entirely.
 #[inline(never)]
 fn render_document_children<'a>(
     children: &'a [Block],
-    refs: &LinkRefMap,
+    ctx: RenderCtx<'a>,
     out: &mut String,
-    opts: &ParseOptions,
     bufs: &mut InlineBuffers,
-    source: &str,
-    code_src_ranges: &[(u32, u32)],
     code_src_idx: &mut usize,
-) -> bool {
+) {
     for child in children {
         match child {
             Block::ThematicBreak => out.push_str("<hr />\n"),
             Block::Paragraph { raw } => {
                 out.push_str("<p>");
-                parse_inline_pass(out, raw, refs, opts, bufs);
+                parse_inline_pass(out, raw, ctx.refs, ctx.opts, bufs);
                 out.push_str("</p>\n");
             }
             Block::Heading { level, raw } => {
@@ -202,7 +156,7 @@ fn render_document_children<'a>(
                 out.push('<');
                 out.push_str(tag);
                 let mut slug = std::mem::take(&mut bufs.scratch);
-                let use_slug = opts.enable_heading_ids || opts.enable_heading_anchors;
+                let use_slug = ctx.opts.enable_heading_ids || ctx.opts.enable_heading_anchors;
                 if use_slug {
                     heading_slug_into(&mut slug, raw);
                     if !slug.is_empty() {
@@ -212,8 +166,8 @@ fn render_document_children<'a>(
                     }
                 }
                 out.push('>');
-                parse_inline_pass(out, raw, refs, opts, bufs);
-                if opts.enable_heading_anchors && !slug.is_empty() {
+                parse_inline_pass(out, raw, ctx.refs, ctx.opts, bufs);
+                if ctx.opts.enable_heading_anchors && !slug.is_empty() {
                     out.push_str(" <a class=\"anchor\" href=\"#");
                     encode_url_escaped_into(out, &slug);
                     out.push_str("\">¶</a>");
@@ -224,12 +178,12 @@ fn render_document_children<'a>(
                 bufs.scratch = slug;
             }
             Block::CodeBlock { info, literal } => {
-                render_code_block(out, info, literal, source, code_src_ranges, code_src_idx);
+                render_code_block(out, info, literal, ctx.source, ctx.code_src_ranges, code_src_idx);
             }
             Block::HtmlBlock { literal } => {
-                let escape_it = opts.disable_raw_html
-                    || opts.no_html_blocks
-                    || (opts.tag_filter && gfm_tag_is_filtered(literal));
+                let escape_it = ctx.opts.disable_raw_html
+                    || ctx.opts.no_html_blocks
+                    || (ctx.opts.tag_filter && gfm_tag_is_filtered(literal));
                 if escape_it {
                     escape_html_into(out, literal);
                 } else {
@@ -243,17 +197,7 @@ fn render_document_children<'a>(
                 // Tables at document level: call render_one with a local stack (tables
                 // never push extra Work items, so the stack stays empty after the call).
                 let mut dummy_stack: Vec<Work<'_>> = Vec::new();
-                render_one(
-                    child,
-                    refs,
-                    out,
-                    opts,
-                    bufs,
-                    &mut dummy_stack,
-                    source,
-                    code_src_ranges,
-                    code_src_idx,
-                );
+                render_one(child, ctx, out, bufs, &mut dummy_stack, code_src_idx);
                 let _ = td;
             }
             // Container blocks (BlockQuote, List, ListItem): use a local stack for this
@@ -261,46 +205,47 @@ fn render_document_children<'a>(
             _ => {
                 let mut stack: Vec<Work<'a>> = Vec::with_capacity(8);
                 // Push remaining children (including this one) in reverse so we pop in order.
-                let remaining_start = children.iter().position(|c| std::ptr::eq(c, child)).unwrap_or(0);
+                let remaining_start = children
+                    .iter()
+                    .position(|c| std::ptr::eq(c, child))
+                    .unwrap_or(0);
                 for remaining_child in children[remaining_start..].iter().rev() {
                     stack.push(Work::Block(remaining_child));
                 }
                 while let Some(work) = stack.pop() {
                     match work {
                         Work::CloseTag(tag) => out.push_str(tag),
-                        Work::TightListItem(b) => render_tight_list_item(b, refs, out, opts, bufs, &mut stack, source, code_src_ranges, code_src_idx),
+                        Work::TightListItem(b) => {
+                            render_tight_list_item(b, ctx, out, bufs, &mut stack, code_src_idx);
+                        }
                         Work::TightBlock(b) => {
                             if let Block::Paragraph { raw } = b {
-                                push_inline_or_plain(out, raw, refs, opts, bufs);
+                                push_inline_or_plain(out, raw, ctx.refs, ctx.opts, bufs);
                             } else {
-                                render_one(b, refs, out, opts, bufs, &mut stack, source, code_src_ranges, code_src_idx);
+                                render_one(b, ctx, out, bufs, &mut stack, code_src_idx);
                             }
                         }
-                        Work::Block(b) => render_one(b, refs, out, opts, bufs, &mut stack, source, code_src_ranges, code_src_idx),
+                        Work::Block(b) => render_one(b, ctx, out, bufs, &mut stack, code_src_idx),
                     }
                 }
-                return true;
+                return;
             }
         }
     }
-    true
 }
 
 #[inline]
 fn render_single_child_doc(
     child: &Block,
-    refs: &LinkRefMap,
+    ctx: RenderCtx<'_>,
     out: &mut String,
-    opts: &ParseOptions,
     bufs: &mut InlineBuffers,
-    source: &str,
-    code_src_ranges: &[(u32, u32)],
     code_src_idx: &mut usize,
 ) {
     match child {
         Block::Paragraph { raw } => {
             out.push_str("<p>");
-            parse_inline_pass(out, raw, refs, opts, bufs);
+            parse_inline_pass(out, raw, ctx.refs, ctx.opts, bufs);
             out.push_str("</p>\n");
         }
         _ => {
@@ -310,46 +255,16 @@ fn render_single_child_doc(
                 match work {
                     Work::CloseTag(tag) => out.push_str(tag),
                     Work::TightListItem(block) => {
-                        render_tight_list_item(
-                            block,
-                            refs,
-                            out,
-                            opts,
-                            bufs,
-                            &mut stack,
-                            source,
-                            code_src_ranges,
-                            code_src_idx,
-                        );
+                        render_tight_list_item(block, ctx, out, bufs, &mut stack, code_src_idx);
                     }
                     Work::TightBlock(block) => {
                         if let Block::Paragraph { raw } = block {
-                            push_inline_or_plain(out, raw, refs, opts, bufs);
+                            push_inline_or_plain(out, raw, ctx.refs, ctx.opts, bufs);
                         } else {
-                            render_one(
-                                block,
-                                refs,
-                                out,
-                                opts,
-                                bufs,
-                                &mut stack,
-                                source,
-                                code_src_ranges,
-                                code_src_idx,
-                            );
+                            render_one(block, ctx, out, bufs, &mut stack, code_src_idx);
                         }
                     }
-                    Work::Block(block) => render_one(
-                        block,
-                        refs,
-                        out,
-                        opts,
-                        bufs,
-                        &mut stack,
-                        source,
-                        code_src_ranges,
-                        code_src_idx,
-                    ),
+                    Work::Block(block) => render_one(block, ctx, out, bufs, &mut stack, code_src_idx),
                 }
             }
         }
@@ -383,13 +298,10 @@ fn emit_list_open(out: &mut String, kind: &ListKind, start: u32) {
 #[inline]
 fn render_one<'a>(
     block: &'a Block,
-    refs: &LinkRefMap,
+    ctx: RenderCtx<'a>,
     out: &mut String,
-    opts: &ParseOptions,
     bufs: &mut InlineBuffers,
     stack: &mut Vec<Work<'a>>,
-    source: &str,
-    code_src_ranges: &[(u32, u32)],
     code_src_idx: &mut usize,
 ) {
     match block {
@@ -406,7 +318,7 @@ fn render_one<'a>(
             out.push('<');
             out.push_str(tag);
             let mut slug = std::mem::take(&mut bufs.scratch);
-            let use_slug = opts.enable_heading_ids || opts.enable_heading_anchors;
+            let use_slug = ctx.opts.enable_heading_ids || ctx.opts.enable_heading_anchors;
             if use_slug {
                 heading_slug_into(&mut slug, raw);
                 if !slug.is_empty() {
@@ -416,8 +328,8 @@ fn render_one<'a>(
                 }
             }
             out.push('>');
-            parse_inline_pass(out, raw, refs, opts, bufs);
-            if opts.enable_heading_anchors && !slug.is_empty() {
+            parse_inline_pass(out, raw, ctx.refs, ctx.opts, bufs);
+            if ctx.opts.enable_heading_anchors && !slug.is_empty() {
                 out.push_str(" <a class=\"anchor\" href=\"#");
                 encode_url_escaped_into(out, &slug);
                 out.push_str("\">¶</a>");
@@ -429,16 +341,16 @@ fn render_one<'a>(
         }
         Block::Paragraph { raw } => {
             out.push_str("<p>");
-            parse_inline_pass(out, raw, refs, opts, bufs);
+            parse_inline_pass(out, raw, ctx.refs, ctx.opts, bufs);
             out.push_str("</p>\n");
         }
         Block::CodeBlock { info, literal } => {
-            render_code_block(out, info, literal, source, code_src_ranges, code_src_idx);
+            render_code_block(out, info, literal, ctx.source, ctx.code_src_ranges, code_src_idx);
         }
         Block::HtmlBlock { literal } => {
-            let escape_it = opts.disable_raw_html
-                || opts.no_html_blocks
-                || (opts.tag_filter && gfm_tag_is_filtered(literal));
+            let escape_it = ctx.opts.disable_raw_html
+                || ctx.opts.no_html_blocks
+                || (ctx.opts.tag_filter && gfm_tag_is_filtered(literal));
             if escape_it {
                 escape_html_into(out, literal);
             } else {
@@ -466,7 +378,7 @@ fn render_one<'a>(
                     kind,
                     *start,
                     children,
-                    InlineCtx { refs, opts },
+                    InlineCtx { refs: ctx.refs, opts: ctx.opts },
                     out,
                     bufs,
                     stack,
@@ -510,7 +422,7 @@ fn render_one<'a>(
                 } else {
                     alignments.get(i).copied().unwrap_or(TableAlignment::None)
                 };
-                render_table_cell(out, cell.as_str(), "th", align, refs, opts, bufs);
+                render_table_cell(out, cell.as_str(), "th", align, ctx.refs, ctx.opts, bufs);
             }
             out.push_str("</tr>\n</thead>\n");
             let num_rows = td.rows.len().checked_div(num_cols).unwrap_or(0);
@@ -521,7 +433,7 @@ fn render_one<'a>(
                         out.push_str("<tr>\n");
                         for cell in row {
                             out.push_str("<td>");
-                            push_inline_or_plain(out, cell.as_str(), refs, opts, bufs);
+                            push_inline_or_plain(out, cell.as_str(), ctx.refs, ctx.opts, bufs);
                             out.push_str("</td>\n");
                         }
                         out.push_str("</tr>\n");
@@ -531,7 +443,7 @@ fn render_one<'a>(
                         out.push_str("<tr>\n");
                         for (c, cell) in row.iter().enumerate() {
                             let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
-                            render_table_cell(out, cell.as_str(), "td", align, refs, opts, bufs);
+                            render_table_cell(out, cell.as_str(), "td", align, ctx.refs, ctx.opts, bufs);
                         }
                         out.push_str("</tr>\n");
                     }
@@ -723,27 +635,14 @@ fn render_nested_tight_list<'a>(
 #[inline]
 fn render_tight_list_item<'a>(
     block: &'a Block,
-    refs: &LinkRefMap,
+    ctx: RenderCtx<'a>,
     out: &mut String,
-    opts: &ParseOptions,
     bufs: &mut InlineBuffers,
     stack: &mut Vec<Work<'a>>,
-    source: &str,
-    code_src_ranges: &[(u32, u32)],
     code_src_idx: &mut usize,
 ) {
     let Block::ListItem { children, checked } = block else {
-        render_one(
-            block,
-            refs,
-            out,
-            opts,
-            bufs,
-            stack,
-            source,
-            code_src_ranges,
-            code_src_idx,
-        );
+        render_one(block, ctx, out, bufs, stack, code_src_idx);
         return;
     };
 
@@ -753,7 +652,7 @@ fn render_tight_list_item<'a>(
     if children.len() == 1
         && let Block::Paragraph { raw } = &children[0]
     {
-        push_inline_or_plain(out, raw, refs, opts, bufs);
+        push_inline_or_plain(out, raw, ctx.refs, ctx.opts, bufs);
         out.push_str("</li>\n");
         return;
     }
@@ -763,7 +662,7 @@ fn render_tight_list_item<'a>(
     for (idx, child) in children.iter().enumerate() {
         match child {
             Block::Paragraph { raw } => {
-                push_inline_or_plain(out, raw, refs, opts, bufs);
+                push_inline_or_plain(out, raw, ctx.refs, ctx.opts, bufs);
                 prev_was_para = true;
             }
             _ => {

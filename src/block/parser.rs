@@ -722,14 +722,10 @@ impl<'a> BlockParser<'a> {
             OpenBlockType::FencedCode(fc_data) => {
                 if self.render_mode {
                     if let Some(range) = block.code_src_range {
-                        // Streaming render: if a live output buffer is set, write the HTML
-                        // directly and skip building a Block::CodeBlock entirely. This
-                        // eliminates the render-phase iteration over code blocks.
                         // Render-mode fast path: content is a direct source slice — record
                         // range and emit an empty literal. The renderer resolves it via the
                         // `code_src_ranges` index at render time.
                         self.code_src_ranges.push(range);
-                        self.code_src_count += 1;
                         return Some(Block::CodeBlock {
                             info: fc_data.info,
                             literal: String::new(),
