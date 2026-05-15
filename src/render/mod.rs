@@ -11,6 +11,50 @@ use crate::html::{
 use crate::inline::{InlineBuffers, LinkRefMap, parse_inline_pass};
 
 #[inline(always)]
+fn render_code_block(
+    out: &mut String,
+    info: &str,
+    literal: &str,
+    source: &str,
+    code_src_ranges: &[(u32, u32)],
+    code_src_idx: &mut usize,
+) {
+    if info.is_empty() {
+        out.push_str("<pre><code>");
+    } else {
+        // Find first space/tab/newline to isolate the language name.
+        // Scalar scan beats memchr3 for short info strings (typical: "rust", "js").
+        let info_bytes = info.as_bytes();
+        let lang_end = info_bytes
+            .iter()
+            .position(|&b| b == b' ' || b == b'\t' || b == b'\n')
+            .unwrap_or(info_bytes.len());
+        if lang_end == 0 {
+            out.push_str("<pre><code>");
+        } else {
+            // SAFETY: lang_end is a byte index from the iterator, so it's in-bounds and
+            // on a char boundary (we only stepped past ASCII bytes).
+            let lang = unsafe { info.get_unchecked(..lang_end) };
+            out.push_str("<pre><code class=\"language-");
+            escape_html_into(out, lang);
+            out.push_str("\">");
+        }
+    }
+    if literal.is_empty() {
+        if let Some(&(start, end)) = code_src_ranges.get(*code_src_idx) {
+            // SAFETY: start/end were produced by bulk_scan_fenced_code scanning over
+            // source, so they are valid byte offsets on UTF-8 char boundaries.
+            let content = unsafe { source.get_unchecked(start as usize..end as usize) };
+            escape_html_into(out, content);
+            *code_src_idx += 1;
+        }
+    } else {
+        escape_html_into(out, literal);
+    }
+    out.push_str("</code></pre>\n");
+}
+
+#[inline(always)]
 fn emit_checkbox(out: &mut String, checked: Option<bool>) {
     match checked {
         Some(true) => out.push_str("<input type=\"checkbox\" checked=\"\" disabled=\"\" /> "),
@@ -32,12 +76,44 @@ pub(crate) fn render_block(
     out: &mut String,
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
+    source: &str,
+    code_src_ranges: &[(u32, u32)],
 ) {
-    if let Block::Document { children } = block
-        && let [child] = children.as_slice()
-    {
-        render_single_child_doc(child, refs, out, opts, bufs);
-        return;
+    let mut code_src_idx: usize = 0;
+
+    if let Block::Document { children } = block {
+        match children.as_slice() {
+            [child] => {
+                render_single_child_doc(
+                    child,
+                    refs,
+                    out,
+                    opts,
+                    bufs,
+                    source,
+                    code_src_ranges,
+                    &mut code_src_idx,
+                );
+                return;
+            }
+            children => {
+                // Fast path: iterate document children directly, falling back to stack only
+                // for container blocks (blockquote, list, etc.). Leaf-only documents (common
+                // case) avoid allocating the Work stack entirely.
+                if render_document_children(
+                    children,
+                    refs,
+                    out,
+                    opts,
+                    bufs,
+                    source,
+                    code_src_ranges,
+                    &mut code_src_idx,
+                ) {
+                    return;
+                }
+            }
+        }
     }
 
     let mut stack: Vec<Work<'_>> = Vec::with_capacity(32);
@@ -47,20 +123,167 @@ pub(crate) fn render_block(
         match work {
             Work::CloseTag(tag) => out.push_str(tag),
             Work::TightListItem(block) => {
-                render_tight_list_item(block, refs, out, opts, bufs, &mut stack);
+                render_tight_list_item(
+                    block,
+                    refs,
+                    out,
+                    opts,
+                    bufs,
+                    &mut stack,
+                    source,
+                    code_src_ranges,
+                    &mut code_src_idx,
+                );
             }
             Work::TightBlock(block) => {
                 if let Block::Paragraph { raw } = block {
                     push_inline_or_plain(out, raw, refs, opts, bufs);
                 } else {
-                    render_one(block, refs, out, opts, bufs, &mut stack);
+                    render_one(
+                        block,
+                        refs,
+                        out,
+                        opts,
+                        bufs,
+                        &mut stack,
+                        source,
+                        code_src_ranges,
+                        &mut code_src_idx,
+                    );
                 }
             }
             Work::Block(block) => {
-                render_one(block, refs, out, opts, bufs, &mut stack);
+                render_one(
+                    block,
+                    refs,
+                    out,
+                    opts,
+                    bufs,
+                    &mut stack,
+                    source,
+                    code_src_ranges,
+                    &mut code_src_idx,
+                );
             }
         }
     }
+}
+
+/// Render all direct children of a Document block without allocating a Work stack.
+/// Renders leaf blocks inline; for container blocks (BlockQuote, List) it falls back
+/// to the stack path by returning `false`. The caller then re-enters via the stack path
+/// for the *remaining* children.
+///
+/// In practice, most documents contain only leaf blocks at the top level (paragraphs,
+/// headings, code blocks, HR), so this eliminates the `Vec<Work>` allocation entirely.
+#[inline(never)]
+fn render_document_children<'a>(
+    children: &'a [Block],
+    refs: &LinkRefMap,
+    out: &mut String,
+    opts: &ParseOptions,
+    bufs: &mut InlineBuffers,
+    source: &str,
+    code_src_ranges: &[(u32, u32)],
+    code_src_idx: &mut usize,
+) -> bool {
+    for child in children {
+        match child {
+            Block::ThematicBreak => out.push_str("<hr />\n"),
+            Block::Paragraph { raw } => {
+                out.push_str("<p>");
+                parse_inline_pass(out, raw, refs, opts, bufs);
+                out.push_str("</p>\n");
+            }
+            Block::Heading { level, raw } => {
+                static TAGS: [&str; 7] = ["", "h1", "h2", "h3", "h4", "h5", "h6"];
+                let l = *level as usize;
+                let tag = TAGS[l];
+                out.push('<');
+                out.push_str(tag);
+                let mut slug = std::mem::take(&mut bufs.scratch);
+                let use_slug = opts.enable_heading_ids || opts.enable_heading_anchors;
+                if use_slug {
+                    heading_slug_into(&mut slug, raw);
+                    if !slug.is_empty() {
+                        out.push_str(" id=\"");
+                        escape_html_into(out, &slug);
+                        out.push('"');
+                    }
+                }
+                out.push('>');
+                parse_inline_pass(out, raw, refs, opts, bufs);
+                if opts.enable_heading_anchors && !slug.is_empty() {
+                    out.push_str(" <a class=\"anchor\" href=\"#");
+                    encode_url_escaped_into(out, &slug);
+                    out.push_str("\">¶</a>");
+                }
+                out.push_str("</");
+                out.push_str(tag);
+                out.push_str(">\n");
+                bufs.scratch = slug;
+            }
+            Block::CodeBlock { info, literal } => {
+                render_code_block(out, info, literal, source, code_src_ranges, code_src_idx);
+            }
+            Block::HtmlBlock { literal } => {
+                let escape_it = opts.disable_raw_html
+                    || opts.no_html_blocks
+                    || (opts.tag_filter && gfm_tag_is_filtered(literal));
+                if escape_it {
+                    escape_html_into(out, literal);
+                } else {
+                    out.push_str(literal);
+                }
+                if !literal.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+            Block::Table(td) => {
+                // Tables at document level: call render_one with a local stack (tables
+                // never push extra Work items, so the stack stays empty after the call).
+                let mut dummy_stack: Vec<Work<'_>> = Vec::new();
+                render_one(
+                    child,
+                    refs,
+                    out,
+                    opts,
+                    bufs,
+                    &mut dummy_stack,
+                    source,
+                    code_src_ranges,
+                    code_src_idx,
+                );
+                let _ = td;
+            }
+            // Container blocks (BlockQuote, List, ListItem): use a local stack for this
+            // child and any remaining children. This is the uncommon case for top-level docs.
+            _ => {
+                let mut stack: Vec<Work<'a>> = Vec::with_capacity(8);
+                // Push remaining children (including this one) in reverse so we pop in order.
+                let remaining_start = children.iter().position(|c| std::ptr::eq(c, child)).unwrap_or(0);
+                for remaining_child in children[remaining_start..].iter().rev() {
+                    stack.push(Work::Block(remaining_child));
+                }
+                while let Some(work) = stack.pop() {
+                    match work {
+                        Work::CloseTag(tag) => out.push_str(tag),
+                        Work::TightListItem(b) => render_tight_list_item(b, refs, out, opts, bufs, &mut stack, source, code_src_ranges, code_src_idx),
+                        Work::TightBlock(b) => {
+                            if let Block::Paragraph { raw } = b {
+                                push_inline_or_plain(out, raw, refs, opts, bufs);
+                            } else {
+                                render_one(b, refs, out, opts, bufs, &mut stack, source, code_src_ranges, code_src_idx);
+                            }
+                        }
+                        Work::Block(b) => render_one(b, refs, out, opts, bufs, &mut stack, source, code_src_ranges, code_src_idx),
+                    }
+                }
+                return true;
+            }
+        }
+    }
+    true
 }
 
 #[inline]
@@ -70,6 +293,9 @@ fn render_single_child_doc(
     out: &mut String,
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
+    source: &str,
+    code_src_ranges: &[(u32, u32)],
+    code_src_idx: &mut usize,
 ) {
     match child {
         Block::Paragraph { raw } => {
@@ -84,16 +310,46 @@ fn render_single_child_doc(
                 match work {
                     Work::CloseTag(tag) => out.push_str(tag),
                     Work::TightListItem(block) => {
-                        render_tight_list_item(block, refs, out, opts, bufs, &mut stack);
+                        render_tight_list_item(
+                            block,
+                            refs,
+                            out,
+                            opts,
+                            bufs,
+                            &mut stack,
+                            source,
+                            code_src_ranges,
+                            code_src_idx,
+                        );
                     }
                     Work::TightBlock(block) => {
                         if let Block::Paragraph { raw } = block {
                             push_inline_or_plain(out, raw, refs, opts, bufs);
                         } else {
-                            render_one(block, refs, out, opts, bufs, &mut stack);
+                            render_one(
+                                block,
+                                refs,
+                                out,
+                                opts,
+                                bufs,
+                                &mut stack,
+                                source,
+                                code_src_ranges,
+                                code_src_idx,
+                            );
                         }
                     }
-                    Work::Block(block) => render_one(block, refs, out, opts, bufs, &mut stack),
+                    Work::Block(block) => render_one(
+                        block,
+                        refs,
+                        out,
+                        opts,
+                        bufs,
+                        &mut stack,
+                        source,
+                        code_src_ranges,
+                        code_src_idx,
+                    ),
                 }
             }
         }
@@ -132,6 +388,9 @@ fn render_one<'a>(
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
     stack: &mut Vec<Work<'a>>,
+    source: &str,
+    code_src_ranges: &[(u32, u32)],
+    code_src_idx: &mut usize,
 ) {
     match block {
         Block::Document { children } => {
@@ -174,25 +433,7 @@ fn render_one<'a>(
             out.push_str("</p>\n");
         }
         Block::CodeBlock { info, literal } => {
-            if info.is_empty() {
-                out.push_str("<pre><code>");
-            } else {
-                let lang = match memchr::memchr3(b' ', b'\t', b'\n', info.as_bytes()) {
-                    Some(0) => "",
-                    // SAFETY: `pos` is returned by memchr and is within `info`.
-                    Some(pos) => unsafe { info.get_unchecked(..pos) },
-                    None => info,
-                };
-                if lang.is_empty() {
-                    out.push_str("<pre><code>");
-                } else {
-                    out.push_str("<pre><code class=\"language-");
-                    escape_html_into(out, lang);
-                    out.push_str("\">");
-                }
-            }
-            escape_html_into(out, literal);
-            out.push_str("</code></pre>\n");
+            render_code_block(out, info, literal, source, code_src_ranges, code_src_idx);
         }
         Block::HtmlBlock { literal } => {
             let escape_it = opts.disable_raw_html
@@ -487,9 +728,22 @@ fn render_tight_list_item<'a>(
     opts: &ParseOptions,
     bufs: &mut InlineBuffers,
     stack: &mut Vec<Work<'a>>,
+    source: &str,
+    code_src_ranges: &[(u32, u32)],
+    code_src_idx: &mut usize,
 ) {
     let Block::ListItem { children, checked } = block else {
-        render_one(block, refs, out, opts, bufs, stack);
+        render_one(
+            block,
+            refs,
+            out,
+            opts,
+            bufs,
+            stack,
+            source,
+            code_src_ranges,
+            code_src_idx,
+        );
         return;
     };
 

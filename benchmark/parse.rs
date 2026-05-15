@@ -1,8 +1,9 @@
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use ironmark::{
-    __benchmark_heading_slug, __benchmark_parse_inline, __benchmark_parse_table_row, ParseOptions,
-    render_html,
+    __benchmark_heading_slug, __benchmark_parse_inline, __benchmark_parse_table_row,
+    __benchmark_render_html_parse_phase, ParseOptions, parse_markdown, render_html,
 };
+use std::hint::black_box;
 
 type BenchCase = (&'static str, fn() -> String);
 
@@ -298,19 +299,19 @@ struct TimingConfig {
 }
 
 const NORMAL: TimingConfig = TimingConfig {
-    warmup_ms: 300,
-    measure_ms: 1000,
-    sample_size: 50,
+    warmup_ms: 500,
+    measure_ms: 2000,
+    sample_size: 100,
 };
 const SLOW: TimingConfig = TimingConfig {
-    warmup_ms: 200,
-    measure_ms: 1000,
-    sample_size: 10,
+    warmup_ms: 500,
+    measure_ms: 3000,
+    sample_size: 50,
 };
 const PATHOLOGICAL: TimingConfig = TimingConfig {
-    warmup_ms: 100,
-    measure_ms: 500,
-    sample_size: 10,
+    warmup_ms: 300,
+    measure_ms: 1000,
+    sample_size: 30,
 };
 
 // --- Benchmark helper ---
@@ -389,6 +390,25 @@ fn bench_large_lines(c: &mut Criterion) {
 
 fn bench_all_features(c: &mut Criterion) {
     bench_group(c, "all_features", gen_all_features_doc());
+}
+
+fn bench_code_blocks_split(c: &mut Criterion) {
+    let input = gen_code_blocks(100);
+    let opts = ParseOptions::default();
+    let mut group = c.benchmark_group("code_blocks_split");
+    group.warm_up_time(std::time::Duration::from_millis(300));
+    group.measurement_time(std::time::Duration::from_millis(1000));
+    group.sample_size(50);
+    group.bench_function("parse_only_ast", |b| {
+        b.iter(|| parse_markdown(black_box(&input), black_box(&opts)))
+    });
+    group.bench_function("render_html_parse_phase", |b| {
+        b.iter(|| __benchmark_render_html_parse_phase(black_box(&input), black_box(&opts)))
+    });
+    group.bench_function("render_html_full", |b| {
+        b.iter(|| render_html(black_box(&input), black_box(&opts)))
+    });
+    group.finish();
 }
 
 fn bench_hotspots(c: &mut Criterion) {
@@ -578,6 +598,7 @@ criterion_group!(
     bench_large_lines,
     bench_all_features,
     bench_hotspots,
+    bench_code_blocks_split,
     export_csv,
 );
 criterion_main!(benches);

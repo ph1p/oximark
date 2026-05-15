@@ -31,11 +31,7 @@ pub(crate) fn escape_html_into(out: &mut String, input: &str) {
 
 #[inline(always)]
 fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
-    // Fast exit: if none of the four special chars exist, push the whole string.
-    if memchr::memchr3(b'&', b'<', b'>', bytes).is_none() && memchr::memchr(b'"', bytes).is_none() {
-        out.push_str(input);
-        return;
-    }
+    // Single-pass byte-loop with lookup table: cheaper than two memchr calls for short strings.
     let mut last = 0;
     let mut i = 0;
     while i < len {

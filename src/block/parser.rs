@@ -340,17 +340,23 @@ impl<'a> BlockParser<'a> {
                         }
                         if let Some((fence_char, fence_len, info)) = parse_fence_start(rest) {
                             self.close_top_block();
-                            self.open.push(OpenBlock::with_content_capacity(
-                                OpenBlockType::FencedCode(Box::new(FencedCodeData {
-                                    fence_char,
-                                    fence_len,
-                                    fence_indent: indent,
-                                    info: CompactString::from(
-                                        resolve_entities_and_escapes(info).as_ref(),
-                                    ),
-                                })),
-                                128,
-                            ));
+                            let fc = OpenBlockType::FencedCode(FencedCodeData {
+                                fence_char,
+                                fence_len,
+                                fence_indent: indent,
+                                info: CompactString::from(
+                                    resolve_entities_and_escapes(info).as_ref(),
+                                ),
+                            });
+                            // In render mode at depth 1 with no indent, bulk_scan_fenced_code
+                            // will fire immediately and never write to `content`. Skip the
+                            // 128-byte pre-allocation to avoid a malloc that is immediately freed.
+                            let block = if self.render_mode && indent == 0 {
+                                OpenBlock::new(fc)
+                            } else {
+                                OpenBlock::with_content_capacity(fc, 128)
+                            };
+                            self.open.push(block);
                             return;
                         }
                         if let Some(end_condition) = parse_html_block_start(rest, true) {
@@ -530,17 +536,15 @@ impl<'a> BlockParser<'a> {
                     return;
                 }
                 if let Some((fence_char, fence_len, info)) = parse_fence_start(rest) {
-                    self.open
-                        .push(OpenBlock::new(OpenBlockType::FencedCode(Box::new(
-                            FencedCodeData {
-                                fence_char,
-                                fence_len,
-                                fence_indent: indent,
-                                info: CompactString::from(
-                                    resolve_entities_and_escapes(info).as_ref(),
-                                ),
-                            },
-                        ))));
+                    self.open.push(OpenBlock::with_content_capacity(
+                        OpenBlockType::FencedCode(FencedCodeData {
+                            fence_char,
+                            fence_len,
+                            fence_indent: indent,
+                            info: CompactString::from(resolve_entities_and_escapes(info).as_ref()),
+                        }),
+                        64,
+                    ));
                     return;
                 }
                 if !self.no_html_blocks
@@ -715,10 +719,36 @@ impl<'a> BlockParser<'a> {
                 };
                 Some(list)
             }
-            OpenBlockType::FencedCode(fc_data) => Some(Block::CodeBlock {
-                info: fc_data.info,
-                literal: block.content,
-            }),
+            OpenBlockType::FencedCode(fc_data) => {
+                if self.render_mode {
+                    if let Some(range) = block.code_src_range {
+                        // Streaming render: if a live output buffer is set, write the HTML
+                        // directly and skip building a Block::CodeBlock entirely. This
+                        // eliminates the render-phase iteration over code blocks.
+                        // Render-mode fast path: content is a direct source slice — record
+                        // range and emit an empty literal. The renderer resolves it via the
+                        // `code_src_ranges` index at render time.
+                        self.code_src_ranges.push(range);
+                        self.code_src_count += 1;
+                        return Some(Block::CodeBlock {
+                            info: fc_data.info,
+                            literal: String::new(),
+                        });
+                    }
+                } else if let Some((start, end)) = block.code_src_range {
+                    // AST mode (parse_markdown): always materialise the literal so callers
+                    // get a fully-populated Block with no empty strings.
+                    let content = &self.input[start as usize..end as usize];
+                    return Some(Block::CodeBlock {
+                        info: fc_data.info,
+                        literal: content.to_owned(),
+                    });
+                }
+                Some(Block::CodeBlock {
+                    info: fc_data.info,
+                    literal: block.content,
+                })
+            }
             OpenBlockType::IndentedCode => {
                 let mut literal = block.content;
                 literal.push('\n');

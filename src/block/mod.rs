@@ -44,16 +44,29 @@ pub fn render_html(markdown: &str, options: &ParseOptions) -> String {
         markdown
     };
     let mut parser = BlockParser::new(markdown, options);
+    parser.render_mode = true;
+    // Pre-allocate to avoid Vec growth reallocations during parse.
+    let estimated_blocks = (markdown.len() / 50).clamp(8, 256);
+    parser.code_src_ranges = Vec::with_capacity(estimated_blocks);
     let doc = parser.parse();
-    let refs = parser.ref_defs;
     let mut out = if markdown.len() <= 256 {
         String::with_capacity(markdown.len() + 32)
     } else {
         String::with_capacity(markdown.len() * 2)
     };
+    let refs = parser.ref_defs;
+    let code_src_ranges = parser.code_src_ranges;
     let mut bufs = InlineBuffers::new();
     bufs.prepare(options);
-    render_block(&doc, &refs, &mut out, options, &mut bufs);
+    render_block(
+        &doc,
+        &refs,
+        &mut out,
+        options,
+        &mut bufs,
+        markdown,
+        &code_src_ranges,
+    );
     out
 }
 
@@ -91,6 +104,16 @@ pub fn parse_markdown(markdown: &str, options: &ParseOptions) -> Block {
 
 pub fn benchmark_parse_table_row(line: &str, num_cols: usize) -> Vec<CompactString> {
     parse_table_row(line, num_cols).into_vec()
+}
+
+#[cfg(feature = "html")]
+#[doc(hidden)]
+pub fn benchmark_render_html_parse_phase(markdown: &str, options: &ParseOptions) -> (Block, Vec<(u32, u32)>) {
+    let mut parser = BlockParser::new(markdown, options);
+    parser.render_mode = true;
+    let doc = parser.parse();
+    let ranges = parser.code_src_ranges;
+    (doc, ranges)
 }
 
 #[derive(Clone, Debug)]
@@ -301,7 +324,11 @@ enum OpenBlockType {
         content_col: usize,
         started_blank: bool,
     },
-    FencedCode(Box<FencedCodeData>),
+    // Not boxed: the heap allocation for Box<FencedCodeData> is measurably expensive
+    // when parsing many top-level fenced code blocks (100+ boxes/frees ≈ 3 µs).
+    // OpenBlockType lives in a Vec<OpenBlock> with max depth ~16, so the extra inline
+    // size is fine.
+    FencedCode(FencedCodeData),
     IndentedCode,
     HtmlBlock {
         end_condition: HtmlBlockEnd,
@@ -331,6 +358,10 @@ struct OpenBlock {
     checked: Option<bool>,
     list_start: u32,
     list_kind: Option<ListKind>,
+    /// For fenced code blocks with no indent stripping and no CR: the byte range
+    /// in the source string that contains the literal content. When set, `content`
+    /// is left empty and the range is used directly at render time to avoid copying.
+    code_src_range: Option<(u32, u32)>,
 }
 
 impl OpenBlock {
@@ -346,6 +377,7 @@ impl OpenBlock {
             checked: None,
             list_start: 0,
             list_kind: None,
+            code_src_range: None,
         }
     }
 
@@ -372,6 +404,7 @@ impl OpenBlock {
             checked: None,
             list_start: 0,
             list_kind: None,
+            code_src_range: None,
         }
     }
 }
@@ -389,6 +422,17 @@ pub(crate) struct BlockParser<'a> {
     enable_indented_code_blocks: bool,
     permissive_atx_headers: bool,
     no_html_blocks: bool,
+    /// Source ranges for fenced code blocks that were stored by range instead of copied.
+    /// Each entry is `(start, end)` into `self.input`. The `literal` in the corresponding
+    /// `Block::CodeBlock` will be empty; consumers check this vec via index.
+    /// Index corresponds to the order code blocks appear in the document.
+    pub(crate) code_src_ranges: Vec<(u32, u32)>,
+    /// Counter: how many code-block-by-range entries have been emitted.
+    code_src_count: u32,
+    /// When `true`, fenced code blocks with no CR/indent can store a source range
+    /// instead of copying the literal content. Used only by `render_html`; the public
+    /// `parse_markdown` API always copies so callers get a fully-populated AST.
+    render_mode: bool,
 }
 
 impl<'a> BlockParser<'a> {
@@ -411,6 +455,9 @@ impl<'a> BlockParser<'a> {
             enable_indented_code_blocks: options.enable_indented_code_blocks,
             permissive_atx_headers: options.permissive_atx_headers,
             no_html_blocks: options.no_html_blocks || options.disable_raw_html,
+            code_src_ranges: Vec::new(),
+            code_src_count: 0,
+            render_mode: false,
         }
     }
 
@@ -473,7 +520,12 @@ impl<'a> BlockParser<'a> {
 
             if is_closing_fence(&bytes[pos..check_end], fence_char, fence_len) {
                 if pos > content_start {
-                    self.push_bulk_content(input, content_start, pos, has_cr);
+                    if !has_cr {
+                        // Fast path: content is a direct slice of source — record range, skip copy.
+                        self.open[1].code_src_range = Some((content_start as u32, pos as u32));
+                    } else {
+                        self.push_bulk_content(input, content_start, pos, has_cr);
+                    }
                 }
                 self.close_top_block();
                 return line_end + 1;
@@ -483,10 +535,18 @@ impl<'a> BlockParser<'a> {
         }
 
         if len > content_start {
-            self.push_bulk_content(input, content_start, len, has_cr);
-            let content = &mut self.open[1].content;
-            if !content.ends_with('\n') {
-                content.push('\n');
+            if !has_cr && bytes[len - 1] == b'\n' {
+                // Fast path: source ends with '\n' — content is a direct slice of source,
+                // no copy needed.
+                self.open[1].code_src_range = Some((content_start as u32, len as u32));
+            } else {
+                // Either has CR escaping or the source doesn't end with '\n', so we must
+                // copy and ensure a trailing newline.
+                self.push_bulk_content(input, content_start, len, has_cr);
+                let content = &mut self.open[1].content;
+                if !content.ends_with('\n') {
+                    content.push('\n');
+                }
             }
         }
         pos

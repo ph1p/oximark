@@ -107,6 +107,9 @@ pub use inline::benchmark_parse_inline as __benchmark_parse_inline;
 #[cfg(feature = "html")]
 #[doc(hidden)]
 pub use render::benchmark_heading_slug as __benchmark_heading_slug;
+#[cfg(feature = "html")]
+#[doc(hidden)]
+pub use block::benchmark_render_html_parse_phase as __benchmark_render_html_parse_phase;
 
 #[inline(always)]
 pub(crate) fn is_ascii_punctuation(b: u8) -> bool {
