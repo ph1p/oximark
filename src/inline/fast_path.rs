@@ -67,9 +67,7 @@ pub(super) fn try_emit_common_inline(out: &mut String, raw: &str, opts: &ParseOp
                 if seg_needs_escape {
                     escape_html_into(out, &raw[text_start..$at]);
                 } else {
-                    // SAFETY: text_start and $at are byte positions within `raw`
-                    // advanced only at ASCII boundaries in this function.
-                    out.push_str(unsafe { raw.get_unchecked(text_start..$at) });
+                    out.push_str(&raw[text_start..$at]);
                 }
             }
         };
@@ -163,8 +161,7 @@ pub(super) fn try_emit_common_inline(out: &mut String, raw: &str, opts: &ParseOp
         if seg_needs_escape {
             escape_html_into(out, &raw[text_start..]);
         } else {
-            // SAFETY: text_start is at an ASCII boundary within `raw`.
-            out.push_str(unsafe { raw.get_unchecked(text_start..) });
+            out.push_str(&raw[text_start..]);
         }
     }
     true

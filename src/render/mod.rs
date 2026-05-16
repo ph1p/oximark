@@ -32,9 +32,7 @@ fn render_code_block(
         if lang_end == 0 {
             out.push_str("<pre><code>");
         } else {
-            // SAFETY: lang_end is a byte index from the iterator, so it's in-bounds and
-            // on a char boundary (we only stepped past ASCII bytes).
-            let lang = unsafe { info.get_unchecked(..lang_end) };
+            let lang = &info[..lang_end];
             out.push_str("<pre><code class=\"language-");
             escape_html_into(out, lang);
             out.push_str("\">");
@@ -42,9 +40,7 @@ fn render_code_block(
     }
     if literal.is_empty() {
         if let Some(&(start, end)) = code_src_ranges.get(*code_src_idx) {
-            // SAFETY: start/end were produced by bulk_scan_fenced_code scanning over
-            // source, so they are valid byte offsets on UTF-8 char boundaries.
-            let content = unsafe { source.get_unchecked(start as usize..end as usize) };
+            let content = &source[start as usize..end as usize];
             escape_html_into(out, content);
             *code_src_idx += 1;
         }
@@ -87,7 +83,12 @@ pub(crate) fn render_block(
     source: &str,
     code_src_ranges: &[(u32, u32)],
 ) {
-    let ctx = RenderCtx { refs, opts, source, code_src_ranges };
+    let ctx = RenderCtx {
+        refs,
+        opts,
+        source,
+        code_src_ranges,
+    };
     let mut code_src_idx: usize = 0;
 
     if let Block::Document { children } = block {
@@ -178,7 +179,14 @@ fn render_document_children<'a>(
                 bufs.scratch = slug;
             }
             Block::CodeBlock { info, literal } => {
-                render_code_block(out, info, literal, ctx.source, ctx.code_src_ranges, code_src_idx);
+                render_code_block(
+                    out,
+                    info,
+                    literal,
+                    ctx.source,
+                    ctx.code_src_ranges,
+                    code_src_idx,
+                );
             }
             Block::HtmlBlock { literal } => {
                 let escape_it = ctx.opts.disable_raw_html
@@ -264,7 +272,9 @@ fn render_single_child_doc(
                             render_one(block, ctx, out, bufs, &mut stack, code_src_idx);
                         }
                     }
-                    Work::Block(block) => render_one(block, ctx, out, bufs, &mut stack, code_src_idx),
+                    Work::Block(block) => {
+                        render_one(block, ctx, out, bufs, &mut stack, code_src_idx)
+                    }
                 }
             }
         }
@@ -345,7 +355,14 @@ fn render_one<'a>(
             out.push_str("</p>\n");
         }
         Block::CodeBlock { info, literal } => {
-            render_code_block(out, info, literal, ctx.source, ctx.code_src_ranges, code_src_idx);
+            render_code_block(
+                out,
+                info,
+                literal,
+                ctx.source,
+                ctx.code_src_ranges,
+                code_src_idx,
+            );
         }
         Block::HtmlBlock { literal } => {
             let escape_it = ctx.opts.disable_raw_html
@@ -378,7 +395,10 @@ fn render_one<'a>(
                     kind,
                     *start,
                     children,
-                    InlineCtx { refs: ctx.refs, opts: ctx.opts },
+                    InlineCtx {
+                        refs: ctx.refs,
+                        opts: ctx.opts,
+                    },
                     out,
                     bufs,
                     stack,
@@ -443,7 +463,15 @@ fn render_one<'a>(
                         out.push_str("<tr>\n");
                         for (c, cell) in row.iter().enumerate() {
                             let align = alignments.get(c).copied().unwrap_or(TableAlignment::None);
-                            render_table_cell(out, cell.as_str(), "td", align, ctx.refs, ctx.opts, bufs);
+                            render_table_cell(
+                                out,
+                                cell.as_str(),
+                                "td",
+                                align,
+                                ctx.refs,
+                                ctx.opts,
+                                bufs,
+                            );
                         }
                         out.push_str("</tr>\n");
                     }
@@ -557,36 +585,13 @@ fn render_nested_tight_list<'a>(
             && let Block::Paragraph { raw } = &item_children[0]
         {
             push_inline_or_plain(out, raw, inline.refs, inline.opts, bufs);
-            // Reserve for unwind: "</li>\n" (6) + close tag (~6) per level
-            let total_close_bytes = (depth + 1) * 12;
-            out.reserve(total_close_bytes);
-            debug_assert!(
-                total_close_bytes >= 12,
-                "close bytes must cover at least one level"
-            );
-            // SAFETY: reserved enough capacity, all bytes are ASCII.
-            // Each nesting level writes at most "</li>\n" (6) + "</ul>\n"/"</ol>\n" (6) = 12 bytes.
-            unsafe {
-                let buf = out.as_mut_vec();
-                debug_assert!(buf.capacity() - buf.len() >= total_close_bytes);
-                let mut ptr = buf.as_mut_ptr().add(buf.len());
-
-                macro_rules! write_bytes {
-                    ($s:expr) => {
-                        std::ptr::copy_nonoverlapping($s.as_ptr(), ptr, $s.len());
-                        ptr = ptr.add($s.len());
-                    };
-                }
-
-                write_bytes!(b"</li>\n");
-                write_bytes!(list_close_tag(cur_kind).as_bytes());
-                let mut i = depth;
-                while i > 0 {
-                    i -= 1;
-                    write_bytes!(b"</li>\n");
-                    write_bytes!(close_tags[i].as_bytes());
-                }
-                buf.set_len(ptr.offset_from(buf.as_ptr()) as usize);
+            out.push_str("</li>\n");
+            out.push_str(list_close_tag(cur_kind));
+            let mut i = depth;
+            while i > 0 {
+                i -= 1;
+                out.push_str("</li>\n");
+                out.push_str(close_tags[i]);
             }
             return;
         }

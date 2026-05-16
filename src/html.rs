@@ -35,18 +35,15 @@ fn escape_html_short(out: &mut String, input: &str, bytes: &[u8], len: usize) {
     let mut last = 0;
     let mut i = 0;
     while i < len {
-        // SAFETY: i < len == bytes.len(), offsets are in-bounds.
-        let idx = unsafe { *HTML_ESCAPE.get_unchecked(*bytes.get_unchecked(i) as usize) };
+        let idx = HTML_ESCAPE[bytes[i] as usize];
         if idx != 0 {
-            // SAFETY: last <= i <= len, all within input.
-            out.push_str(unsafe { input.get_unchecked(last..i) });
+            out.push_str(&input[last..i]);
             out.push_str(HTML_ESCAPE_STRS[idx as usize]);
             last = i + 1;
         }
         i += 1;
     }
-    // SAFETY: last <= len.
-    out.push_str(unsafe { input.get_unchecked(last..len) });
+    out.push_str(&input[last..len]);
 }
 
 #[inline]
@@ -64,8 +61,7 @@ fn escape_html_long(out: &mut String, input: &str, bytes: &[u8], len: usize) {
         let b_ = memchr::memchr(b'"', &bytes[i..]);
         let advance = match (a, b_) {
             (None, None) => {
-                // SAFETY: last <= len, i <= len.
-                out.push_str(unsafe { input.get_unchecked(last..len) });
+                out.push_str(&input[last..len]);
                 return;
             }
             (Some(x), None) => x,
@@ -73,18 +69,15 @@ fn escape_html_long(out: &mut String, input: &str, bytes: &[u8], len: usize) {
             (Some(x), Some(y)) => x.min(y),
         };
         i += advance;
-        // SAFETY: i < len (memchr guarantees offset < remaining slice length).
-        let idx = unsafe { *HTML_ESCAPE.get_unchecked(*bytes.get_unchecked(i) as usize) };
+        let idx = HTML_ESCAPE[bytes[i] as usize];
         if idx != 0 {
-            // SAFETY: last <= i <= len, all within valid UTF-8 input.
-            out.push_str(unsafe { input.get_unchecked(last..i) });
+            out.push_str(&input[last..i]);
             out.push_str(HTML_ESCAPE_STRS[idx as usize]);
             last = i + 1;
         }
         i += 1;
     }
-    // SAFETY: last <= len.
-    out.push_str(unsafe { input.get_unchecked(last..len) });
+    out.push_str(&input[last..len]);
 }
 
 static HEX_CHARS: &[u8; 16] = b"0123456789ABCDEF";
@@ -156,14 +149,9 @@ pub(crate) fn encode_url_escaped_into(out: &mut String, url: &str) {
         for j in 0..ch_len {
             if i + j < len {
                 let b = bytes[i + j];
-                let enc: [u8; 3] = [
-                    b'%',
-                    HEX_CHARS[(b >> 4) as usize],
-                    HEX_CHARS[(b & 0xF) as usize],
-                ];
-
-                // SAFETY: `enc` is always ASCII (`%` + hex digits), therefore valid UTF-8.
-                out.push_str(unsafe { std::str::from_utf8_unchecked(&enc) });
+                out.push('%');
+                out.push(HEX_CHARS[(b >> 4) as usize] as char);
+                out.push(HEX_CHARS[(b & 0xF) as usize] as char);
             }
         }
         i += ch_len;
@@ -189,8 +177,7 @@ pub(crate) fn collapse_and_escape_into(out: &mut String, input: &str) {
         let b = bytes[i];
         if b == b' ' || b == b'\t' {
             if last < i {
-                // SAFETY: last..i is a valid UTF-8 substring (we only advance on ASCII).
-                out.push_str(unsafe { input.get_unchecked(last..i) });
+                out.push_str(&input[last..i]);
             }
             while i < len && (bytes[i] == b' ' || bytes[i] == b'\t') {
                 i += 1;
@@ -201,12 +188,10 @@ pub(crate) fn collapse_and_escape_into(out: &mut String, input: &str) {
             }
             last = i;
         } else {
-            // SAFETY: b is a valid u8 index into HTML_ESCAPE.
-            let idx = unsafe { *HTML_ESCAPE.get_unchecked(b as usize) };
+            let idx = HTML_ESCAPE[b as usize];
             if idx != 0 {
                 if last < i {
-                    // SAFETY: last..i is valid UTF-8.
-                    out.push_str(unsafe { input.get_unchecked(last..i) });
+                    out.push_str(&input[last..i]);
                 }
                 out.push_str(HTML_ESCAPE_STRS[idx as usize]);
                 last = i + 1;
@@ -215,8 +200,7 @@ pub(crate) fn collapse_and_escape_into(out: &mut String, input: &str) {
         }
     }
     if last < len {
-        // SAFETY: last..len is valid UTF-8.
-        out.push_str(unsafe { input.get_unchecked(last..len) });
+        out.push_str(&input[last..len]);
     }
 }
 

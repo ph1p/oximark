@@ -600,8 +600,7 @@ impl<'a> InlineScanner<'a> {
                 self.pos = start;
                 return None;
             }
-            // SAFETY: `ns..self.pos` is validated to be within `self.input` by cursor bounds checks above.
-            let name = unsafe { self.input.get_unchecked(ns..self.pos) };
+            let name = &self.input[ns..self.pos];
             self.pos += 1;
             if let Some((cp1, cp2)) = entities::lookup_entity_codepoints(name) {
                 let mut off = 0usize;
@@ -703,11 +702,11 @@ impl<'a> InlineScanner<'a> {
             .iter()
             .any(|&b| matches!(b, b'&' | b'<' | b'>' | b'"'));
         if needs_escape {
-            // SAFETY: `char_buf[..char_len]` is produced by UTF-8 encoding from scalar values.
-            let resolved = unsafe { std::str::from_utf8_unchecked(&char_buf[..char_len]) };
-            let mut s = String::with_capacity(char_len + 8);
-            escape_html_into(&mut s, resolved);
-            self.items.push(InlineItem::TextOwned(s.into_boxed_str()));
+            if let Ok(resolved) = std::str::from_utf8(&char_buf[..char_len]) {
+                let mut s = String::with_capacity(char_len + 8);
+                escape_html_into(&mut s, resolved);
+                self.items.push(InlineItem::TextOwned(s.into_boxed_str()));
+            }
         } else {
             self.items.push(InlineItem::TextInline {
                 buf: char_buf,
@@ -722,8 +721,9 @@ impl<'a> InlineScanner<'a> {
         let Some(len) = self.parse_entity_ref(&mut buf) else {
             return false;
         };
-        // SAFETY: `parse_entity_ref` writes valid UTF-8 bytes into `buf[..len]`.
-        dest.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..len as usize]) });
+        if let Ok(s) = std::str::from_utf8(&buf[..len as usize]) {
+            dest.push_str(s);
+        }
         true
     }
 }

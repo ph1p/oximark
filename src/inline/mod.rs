@@ -75,10 +75,7 @@ pub(crate) fn normalize_reference_label(label: &str) -> Cow<'_, str> {
                 i += 1;
             }
         } else {
-            // SAFETY: We've verified bytes[i] >= 0x80, indicating a multi-byte UTF-8 sequence.
-            // `trimmed` is valid UTF-8, so we can safely slice from a char boundary at `i`.
-            let ch = unsafe { trimmed.get_unchecked(i..) };
-            let c = ch.chars().next().unwrap();
+            let c = trimmed[i..].chars().next().unwrap();
             let clen = c.len_utf8();
             if c.is_whitespace() {
                 if !in_space {

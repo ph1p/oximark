@@ -39,12 +39,7 @@ pub(crate) fn heading_slug_into(slug: &mut String, raw: &str) {
                 return;
             }
             slug.push_str(raw);
-            // SAFETY: lowercasing ASCII preserves UTF-8 validity
-            unsafe {
-                slug.as_mut_vec()
-                    .iter_mut()
-                    .for_each(|b| *b = b.to_ascii_lowercase())
-            };
+            slug.make_ascii_lowercase();
             return;
         }
     }
@@ -90,12 +85,7 @@ pub(crate) fn heading_slug_into(slug: &mut String, raw: &str) {
             // Multi-byte UTF-8
             b if b >= 0x80 => {
                 let char_len = crate::utf8_char_len(b);
-                // SAFETY: We've verified b >= 0x80 indicating a multi-byte sequence.
-                // The input `raw` is valid UTF-8, so the char boundary at `i` is valid.
-                let c = unsafe { raw.get_unchecked(i..) }
-                    .chars()
-                    .next()
-                    .unwrap_or(' ');
+                let c = raw[i..].chars().next().unwrap_or(' ');
                 if c.is_alphanumeric() {
                     for lc in c.to_lowercase() {
                         slug.push(lc);

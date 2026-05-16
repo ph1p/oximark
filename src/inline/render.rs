@@ -30,8 +30,9 @@ impl<'a> InlineScanner<'a> {
                 }
                 InlineItem::TextStatic(t) => out.push_str(t),
                 InlineItem::TextInline { buf, len } => {
-                    // SAFETY: `buf` is constructed from UTF-8 bytes and `len` tracks initialized prefix length.
-                    out.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) });
+                    if let Ok(s) = std::str::from_utf8(&buf[..*len as usize]) {
+                        out.push_str(s);
+                    }
                 }
                 InlineItem::RawHtml(start, end) => {
                     let html = &self.input[*start..*end];
@@ -212,8 +213,9 @@ impl<'a> InlineScanner<'a> {
                 InlineItem::TextOwned(t) | InlineItem::Code(t) => s.push_str(t),
                 InlineItem::TextStatic(t) => s.push_str(t),
                 InlineItem::TextInline { buf, len } => {
-                    // SAFETY: `buf` is constructed from UTF-8 bytes and `len` tracks initialized prefix length.
-                    s.push_str(unsafe { std::str::from_utf8_unchecked(&buf[..*len as usize]) });
+                    if let Ok(st) = std::str::from_utf8(&buf[..*len as usize]) {
+                        s.push_str(st);
+                    }
                 }
                 InlineItem::DelimRun { kind, count, .. } => {
                     for _ in 0..*count {
